@@ -1,0 +1,58 @@
+# Caddy configuration for Alarm System
+# Provides automatic HTTPS with Let's Encrypt
+
+# Alarm Monitor Dashboard
+{$ALARM_MONITOR_DOMAIN:monitor.example.com} {
+    # Enable automatic HTTPS
+    tls {
+        # For production with valid domain: Let's Encrypt will be used automatically
+        # For local testing, Caddy generates self-signed certificates
+    }
+    
+    # Reverse proxy to alarm-monitor
+    reverse_proxy alarm-monitor:8000 {
+        # Forward real client IP
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    
+    # Logging
+    log {
+        output file /var/log/caddy/monitor-access.log
+        format json
+    }
+}
+
+# Alarm Messenger (Admin UI + WebSocket)
+{$ALARM_MESSENGER_DOMAIN:messenger.example.com} {
+    # Enable automatic HTTPS
+    tls {
+        # For production with valid domain: Let's Encrypt will be used automatically
+        # For local testing, Caddy generates self-signed certificates
+    }
+    
+    # Reverse proxy to alarm-messenger
+    reverse_proxy alarm-messenger:3000 {
+        # WebSocket support
+        header_up Connection {>Connection}
+        header_up Upgrade {>Upgrade}
+        
+        # Forward real client IP
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        
+        # Increase timeouts for long-lived WebSocket connections
+        transport http {
+            read_timeout 1h
+            write_timeout 1h
+        }
+    }
+    
+    # Logging
+    log {
+        output file /var/log/caddy/messenger-access.log
+        format json
+    }
+}

@@ -1,0 +1,152 @@
+version: '3.8'
+
+networks:
+  alarm-network:
+    driver: bridge
+    name: alarm-network
+
+volumes:
+  alarm-monitor-data:
+    driver: local
+  alarm-messenger-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+services:
+  # Alarm Mail Service - Polls IMAP and forwards to monitor and messenger
+  alarm-mail:
+    image: ghcr.io/timux/alarm-mail:latest
+    container_name: alarm-mail
+    restart: unless-stopped
+    networks:
+      - alarm-network
+    environment:
+      # IMAP Configuration (Required)
+      - ALARM_MAIL_IMAP_HOST=${ALARM_MAIL_IMAP_HOST}
+      - ALARM_MAIL_IMAP_PORT=${ALARM_MAIL_IMAP_PORT:-993}
+      - ALARM_MAIL_IMAP_USE_SSL=${ALARM_MAIL_IMAP_USE_SSL:-true}
+      - ALARM_MAIL_IMAP_USERNAME=${ALARM_MAIL_IMAP_USERNAME}
+      - ALARM_MAIL_IMAP_PASSWORD=${ALARM_MAIL_IMAP_PASSWORD}
+      - ALARM_MAIL_IMAP_MAILBOX=${ALARM_MAIL_IMAP_MAILBOX:-INBOX}
+      - ALARM_MAIL_IMAP_SEARCH=${ALARM_MAIL_IMAP_SEARCH:-UNSEEN}
+      - ALARM_MAIL_POLL_INTERVAL=${ALARM_MAIL_POLL_INTERVAL:-60}
+      
+      # Alarm Monitor Target (Internal communication)
+      - ALARM_MAIL_ALARM_MONITOR_URL=http://alarm-monitor:8000
+      - ALARM_MAIL_ALARM_MONITOR_API_KEY=${ALARM_MONITOR_API_KEY}
+      
+      # Alarm Messenger Target (Internal communication)
+      - ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
+      - ALARM_MAIL_ALARM_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
+      
+      - TZ=${TZ:-Europe/Berlin}
+    depends_on:
+      alarm-monitor:
+        condition: service_healthy
+      alarm-messenger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  # Alarm Monitor - Dashboard for displaying alarms
+  alarm-monitor:
+    image: ghcr.io/timux/alarm-monitor:copilot-integrate-alarm-messenger-function
+    container_name: alarm-monitor
+    restart: unless-stopped
+    ports:
+      - "${ALARM_MONITOR_PORT:-8000}:8000"
+    networks:
+      - alarm-network
+    environment:
+      # API Configuration
+      - ALARM_DASHBOARD_API_KEY=${ALARM_MONITOR_API_KEY}
+      
+      # Messenger Integration (for participant responses)
+      - ALARM_DASHBOARD_MESSENGER_SERVER_URL=http://alarm-messenger:3000
+      - ALARM_DASHBOARD_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
+      
+      # Display Configuration
+      - ALARM_DASHBOARD_GRUPPEN=${ALARM_MONITOR_GRUPPEN:-}
+      - ALARM_DASHBOARD_DISPLAY_DURATION_MINUTES=${ALARM_MONITOR_DISPLAY_DURATION:-30}
+      - ALARM_DASHBOARD_FIRE_DEPARTMENT_NAME=${FIRE_DEPARTMENT_NAME:-Alarm-Monitor}
+      
+      # Default Location for Idle Weather Display
+      - ALARM_DASHBOARD_DEFAULT_LATITUDE=${DEFAULT_LATITUDE:-}
+      - ALARM_DASHBOARD_DEFAULT_LONGITUDE=${DEFAULT_LONGITUDE:-}
+      - ALARM_DASHBOARD_DEFAULT_LOCATION_NAME=${DEFAULT_LOCATION_NAME:-}
+      
+      - TZ=${TZ:-Europe/Berlin}
+    volumes:
+      - alarm-monitor-data:/app/instance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  # Alarm Messenger - WebSocket-based push notifications for mobile devices
+  alarm-messenger:
+    image: ghcr.io/timux/alarm-messenger:latest
+    container_name: alarm-messenger
+    restart: unless-stopped
+    ports:
+      - "${ALARM_MESSENGER_PORT:-3000}:3000"
+    networks:
+      - alarm-network
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_PATH=/app/data/alarm-messenger.db
+      
+      # Server URL for QR code generation (must be externally accessible URL)
+      - SERVER_URL=${ALARM_MESSENGER_SERVER_URL:-http://localhost:3000}
+      
+      # Security
+      - API_SECRET_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
+      - JWT_SECRET=${ALARM_MESSENGER_JWT_SECRET}
+      
+      # CORS Configuration
+      - CORS_ORIGINS=${ALARM_MESSENGER_CORS_ORIGINS:-*}
+      
+      - TZ=${TZ:-Europe/Berlin}
+    volumes:
+      - alarm-messenger-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Caddy - Optional reverse proxy for SSL/TLS termination with automatic HTTPS
+  # Enable with: docker-compose --profile with-caddy up
+  caddy:
+    image: caddy:2-alpine
+    container_name: alarm-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3 Support
+    networks:
+      - alarm-network
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      - ALARM_MONITOR_DOMAIN=${ALARM_MONITOR_DOMAIN:-monitor.example.com}
+      - ALARM_MESSENGER_DOMAIN=${ALARM_MESSENGER_DOMAIN:-messenger.example.com}
+    depends_on:
+      - alarm-monitor
+      - alarm-messenger
+    profiles:
+      - with-caddy
