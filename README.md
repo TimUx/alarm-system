@@ -114,18 +114,33 @@ Nur folgende Dienste benötigen externe Ports:
    # Server-URL für Messenger (für QR-Code-Generierung)
    ALARM_MESSENGER_SERVER_URL=http://ihre-server-ip:3000
    ```
+   
+   **Tipp:** Verwenden Sie `make generate-keys` um sichere API-Schlüssel zu generieren.
 
-4. **System starten**
+4. **Konfiguration validieren (empfohlen)**
+   ```bash
+   ./validate-config.sh
+   # oder
+   make validate
+   ```
+   
+   Das Skript prüft, ob alle erforderlichen Einstellungen korrekt sind.
+
+5. **System starten**
    ```bash
    docker-compose up -d
+   # oder mit Makefile
+   make start
    ```
 
-5. **Logs überwachen**
+6. **Logs überwachen**
    ```bash
    docker-compose logs -f
+   # oder mit Makefile
+   make logs
    ```
 
-6. **Zugriff auf Dienste**
+7. **Zugriff auf Dienste**
    - Dashboard: http://localhost:8000
    - Messenger Admin: http://localhost:3000/admin/
 
@@ -207,6 +222,38 @@ DEFAULT_LOCATION_NAME=Wache Musterstadt
 Siehe [.env.example](./.env.example) für alle verfügbaren Optionen mit Erklärungen.
 
 ## Betrieb und Wartung
+
+### Helper-Tools
+
+Das Repository enthält hilfreiche Tools für die Verwaltung:
+
+**Makefile-Befehle:**
+```bash
+make help          # Zeigt alle verfügbaren Befehle
+make setup         # Erstellt .env aus .env.example
+make validate      # Validiert Konfiguration
+make start         # Startet alle Services
+make start-ssl     # Startet mit Caddy SSL/TLS
+make stop          # Stoppt alle Services
+make restart       # Startet Services neu
+make status        # Zeigt Service-Status
+make logs          # Zeigt Logs aller Services
+make logs-mail     # Zeigt nur alarm-mail Logs
+make update        # Aktualisiert Images und startet neu
+make backup        # Erstellt Backup aller Daten
+make generate-keys # Generiert sichere API-Schlüssel
+```
+
+**Validierungs-Skript:**
+```bash
+./validate-config.sh
+```
+Prüft:
+- Ob .env vorhanden und korrekt konfiguriert ist
+- Ob alle Pflichtfelder gesetzt sind
+- Ob API-Schlüssel sicher genug sind
+- Ob Docker installiert ist
+- Ob Ports verfügbar sind
 
 ### Status überprüfen
 ```bash
