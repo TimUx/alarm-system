@@ -55,7 +55,7 @@ services:
 
   # Alarm Monitor - Dashboard for displaying alarms
   alarm-monitor:
-    image: ghcr.io/timux/alarm-monitor:copilot-integrate-alarm-messenger-function
+    image: ghcr.io/timux/alarm-monitor:latest
     container_name: alarm-monitor
     restart: unless-stopped
     ports:
