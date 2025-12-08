@@ -146,7 +146,7 @@ else
 fi
 
 # Check if Docker Compose is installed
-if command -v docker-compose &> /dev/null || docker compose version &> /dev/null 2>&1; then
+if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
     echo -e "${GREEN}✓ Docker Compose is installed${NC}"
     docker-compose version 2>/dev/null || docker compose version
 else
@@ -161,7 +161,7 @@ if groups | grep -q docker; then
 else
     echo -e "${YELLOW}WARNING: Current user is not in docker group${NC}"
     echo "  You may need to run docker commands with sudo"
-    echo "  To fix: sudo usermod -aG docker \$USER (requires logout/login)"
+    echo "  To fix: sudo usermod -aG docker $USER (requires logout/login)"
     WARNINGS=$((WARNINGS + 1))
 fi
 

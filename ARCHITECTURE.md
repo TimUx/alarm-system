@@ -19,6 +19,7 @@ Das Alarm-System besteht aus drei Hauptkomponenten, die als Docker-Container bet
 
 **Kommunikation:**
 - **Eingehend:** Keine (kein externer Port)
+  - HTTP Health-Check (intern, Port 8000): `/health`
 - **Ausgehend:**
   - IMAP-Server (Port 993/TCP, SSL)
   - alarm-monitor (HTTP, intern)
@@ -36,6 +37,8 @@ ALARM_MAIL_ALARM_MONITOR_API_KEY
 ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
 ALARM_MAIL_ALARM_MESSENGER_API_KEY
 ```
+
+**Hinweis:** alarm-mail läuft intern auf Port 8000 mit einer Flask-App, die einen `/health` Endpunkt bereitstellt. Der Port wird jedoch nicht nach außen exponiert, da kein externer Zugriff benötigt wird.
 
 ### 2. alarm-monitor
 
