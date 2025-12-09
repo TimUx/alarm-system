@@ -50,11 +50,23 @@ setup_workflow() {
     fi
     
     # Prüfen ob Dockerfile vorhanden ist
-    if [ ! -f "Dockerfile" ]; then
-        echo -e "${RED}✗ Kein Dockerfile gefunden in $repo_path${NC}"
-        echo "  Der Workflow benötigt ein Dockerfile im Root-Verzeichnis."
-        cd "$original_dir"
-        return 1
+    # alarm-messenger hat Dockerfile im server/ Unterordner
+    if [ "$repo_name" = "alarm-messenger" ]; then
+        if [ ! -f "server/Dockerfile" ]; then
+            echo -e "${RED}✗ Kein Dockerfile gefunden in $repo_path/server/${NC}"
+            echo "  Der Workflow benötigt ein Dockerfile im server/ Verzeichnis für alarm-messenger."
+            cd "$original_dir"
+            return 1
+        fi
+        echo -e "${GREEN}✓ Dockerfile gefunden in server/${NC}"
+    else
+        if [ ! -f "Dockerfile" ]; then
+            echo -e "${RED}✗ Kein Dockerfile gefunden in $repo_path${NC}"
+            echo "  Der Workflow benötigt ein Dockerfile im Root-Verzeichnis."
+            cd "$original_dir"
+            return 1
+        fi
+        echo -e "${GREEN}✓ Dockerfile gefunden${NC}"
     fi
     
     # Workflows-Verzeichnis erstellen
@@ -103,7 +115,8 @@ echo "Docker Image Builds in die Komponenten-Repositories einzurichten."
 echo ""
 echo "Voraussetzungen:"
 echo "  - Die Repositories müssen lokal geklont sein"
-echo "  - Jedes Repository muss ein Dockerfile im Root haben"
+echo "  - Jedes Repository muss ein Dockerfile haben"
+echo "    (alarm-mail, alarm-monitor: im Root; alarm-messenger: im server/ Unterordner)"
 echo "  - Sie müssen Push-Rechte auf die Repositories haben"
 echo ""
 

@@ -68,6 +68,8 @@ git commit -m "Add automated Docker image build workflow"
 git push
 ```
 
+**Hinweis:** Der alarm-messenger Workflow baut aus dem `server/` Kontext, da dort das Dockerfile und alle backend-relevanten Daten liegen.
+
 ## Was die Workflows tun
 
 Die Workflows:

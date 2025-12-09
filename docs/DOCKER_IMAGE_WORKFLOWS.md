@@ -16,7 +16,9 @@ Die GitHub Actions Workflows in diesem Repository dienen als Vorlagen, die in je
 
 Für jeden der drei Komponenten-Repositories (`alarm-mail`, `alarm-monitor`, `alarm-messenger`) müssen folgende Voraussetzungen erfüllt sein:
 
-1. **Dockerfile vorhanden**: Jedes Repository muss ein `Dockerfile` im Root-Verzeichnis enthalten
+1. **Dockerfile vorhanden**: 
+   - `alarm-mail` und `alarm-monitor`: Dockerfile im Root-Verzeichnis
+   - `alarm-messenger`: Dockerfile im `server/` Unterordner (da backend-relevante Daten dort liegen)
 2. **GHCR Package Permissions**: Das GitHub Container Registry Package muss entsprechende Berechtigungen haben
 3. **GitHub Actions aktiviert**: GitHub Actions müssen für das Repository aktiviert sein
 
@@ -225,9 +227,11 @@ Diese sollten bereits in den Workflows vorhanden sein. Falls nicht, fügen Sie s
 
 ### Problem: Build schlägt fehl mit "Dockerfile not found"
 
-**Ursache**: Kein Dockerfile im Repository-Root
+**Ursache**: Kein Dockerfile im erwarteten Verzeichnis
 
-**Lösung**: Stellen Sie sicher, dass ein `Dockerfile` im Root-Verzeichnis des jeweiligen Repositories existiert.
+**Lösung**: 
+- Für `alarm-mail` und `alarm-monitor`: Stellen Sie sicher, dass ein `Dockerfile` im Root-Verzeichnis des Repositories existiert
+- Für `alarm-messenger`: Stellen Sie sicher, dass ein `Dockerfile` im `server/` Unterordner existiert (der Workflow baut aus dem `server/` Kontext)
 
 ### Problem: Multi-Platform Build dauert sehr lange
 
