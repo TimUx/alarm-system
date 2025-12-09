@@ -490,3 +490,4 @@ Das System startet in der richtigen Reihenfolge:
 - [alarm-monitor README](https://github.com/TimUx/alarm-monitor/blob/main/README.md)
 - [alarm-messenger README](https://github.com/TimUx/alarm-messenger/blob/main/README.md)
 - [alarm-messenger API Docs](https://github.com/TimUx/alarm-messenger/blob/main/docs/API.md)
+- [Docker Image CI/CD Setup](docs/DOCKER_IMAGE_WORKFLOWS.md) - Automatisierte Image Builds für GHCR
