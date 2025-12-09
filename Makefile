@@ -1,6 +1,7 @@
 .PHONY: help setup validate start stop restart logs status pull update backup clean
 
 # Auto-detect Docker Compose command (plugin vs standalone)
+# Checks for 'docker compose' (modern Docker plugin) first, then falls back to 'docker-compose' (legacy standalone)
 DOCKER_COMPOSE := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 
 # Default target
