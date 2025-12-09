@@ -1,5 +1,8 @@
 .PHONY: help setup validate start stop restart logs status pull update backup clean
 
+# Auto-detect Docker Compose command (plugin vs standalone)
+DOCKER_COMPOSE := $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
+
 # Default target
 help:
 	@echo "Alarm System - Makefile Commands"
@@ -53,50 +56,50 @@ validate:
 
 start:
 	@echo "Starting Alarm System..."
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "Services started. Check status with: make status"
 	@echo "View logs with: make logs"
 
 start-ssl:
 	@echo "Starting Alarm System with SSL/TLS (Caddy)..."
-	docker-compose --profile with-caddy up -d
+	$(DOCKER_COMPOSE) --profile with-caddy up -d
 	@echo ""
 	@echo "Services started with Caddy reverse proxy."
 	@echo "Check status with: make status"
 
 stop:
 	@echo "Stopping Alarm System..."
-	docker-compose --profile with-caddy down
+	$(DOCKER_COMPOSE) --profile with-caddy down
 	@echo "Services stopped."
 
 restart:
 	@echo "Restarting Alarm System..."
-	docker-compose restart
+	$(DOCKER_COMPOSE) restart
 	@echo "Services restarted."
 
 status:
-	@docker-compose ps
+	@$(DOCKER_COMPOSE) ps
 
 logs:
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 logs-mail:
-	docker-compose logs -f alarm-mail
+	$(DOCKER_COMPOSE) logs -f alarm-mail
 
 logs-monitor:
-	docker-compose logs -f alarm-monitor
+	$(DOCKER_COMPOSE) logs -f alarm-monitor
 
 logs-messenger:
-	docker-compose logs -f alarm-messenger
+	$(DOCKER_COMPOSE) logs -f alarm-messenger
 
 pull:
 	@echo "Pulling latest images..."
-	docker-compose pull
+	$(DOCKER_COMPOSE) pull
 
 update: pull
 	@echo "Updating services..."
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 	@echo ""
 	@echo "Services updated and restarted."
 	@echo "Cleaning up old images..."
@@ -124,7 +127,7 @@ backup:
 
 clean:
 	@echo "Cleaning up Docker resources..."
-	docker-compose down --remove-orphans
+	$(DOCKER_COMPOSE) down --remove-orphans
 	@docker image prune -f
 	@echo "Cleanup complete."
 
