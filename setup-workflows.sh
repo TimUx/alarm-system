@@ -22,6 +22,7 @@ setup_workflow() {
     local repo_name=$1
     local repo_path=$2
     local workflow_file=$3
+    local original_dir=$(pwd)
     
     echo -e "${YELLOW}Setting up workflow for ${repo_name}...${NC}"
     
@@ -35,11 +36,16 @@ setup_workflow() {
     fi
     
     # Wechseln ins Repository
-    cd "$repo_path"
+    cd "$repo_path" || {
+        echo -e "${RED}✗ Konnte nicht ins Verzeichnis wechseln: $repo_path${NC}"
+        cd "$original_dir"
+        return 1
+    }
     
     # Prüfen ob es ein Git-Repository ist
     if [ ! -d ".git" ]; then
         echo -e "${RED}✗ Kein Git-Repository: $repo_path${NC}"
+        cd "$original_dir"
         return 1
     fi
     
@@ -47,6 +53,7 @@ setup_workflow() {
     if [ ! -f "Dockerfile" ]; then
         echo -e "${RED}✗ Kein Dockerfile gefunden in $repo_path${NC}"
         echo "  Der Workflow benötigt ein Dockerfile im Root-Verzeichnis."
+        cd "$original_dir"
         return 1
     fi
     
@@ -83,6 +90,9 @@ setup_workflow() {
         echo "  git push"
     fi
     
+    # Zurück zum ursprünglichen Verzeichnis
+    cd "$original_dir"
+    
     echo ""
     return 0
 }
@@ -116,9 +126,15 @@ echo "Bitte geben Sie die Pfade zu den Repositories ein:"
 echo "(oder drücken Sie Enter zum Überspringen)"
 echo ""
 
-read -p "Pfad zu alarm-mail Repository (z.B. ../alarm-mail): " ALARM_MAIL_PATH
-read -p "Pfad zu alarm-monitor Repository (z.B. ../alarm-monitor): " ALARM_MONITOR_PATH
-read -p "Pfad zu alarm-messenger Repository (z.B. ../alarm-messenger): " ALARM_MESSENGER_PATH
+# Repository-Konfiguration
+declare -A REPOS
+REPOS[alarm-mail]=""
+REPOS[alarm-monitor]=""
+REPOS[alarm-messenger]=""
+
+read -p "Pfad zu alarm-mail Repository (z.B. ../alarm-mail): " REPOS[alarm-mail]
+read -p "Pfad zu alarm-monitor Repository (z.B. ../alarm-monitor): " REPOS[alarm-monitor]
+read -p "Pfad zu alarm-messenger Repository (z.B. ../alarm-messenger): " REPOS[alarm-messenger]
 
 echo ""
 echo "=================================================="
@@ -129,32 +145,18 @@ echo ""
 SUCCESS_COUNT=0
 FAIL_COUNT=0
 
-# alarm-mail
-if [ -n "$ALARM_MAIL_PATH" ]; then
-    if setup_workflow "alarm-mail" "$ALARM_MAIL_PATH" "$WORKFLOWS_DIR/build-alarm-mail.yml"; then
-        ((SUCCESS_COUNT++))
-    else
-        ((FAIL_COUNT++))
+# Repositories verarbeiten
+for repo_name in "${!REPOS[@]}"; do
+    repo_path="${REPOS[$repo_name]}"
+    if [ -n "$repo_path" ]; then
+        workflow_file="$WORKFLOWS_DIR/build-${repo_name}.yml"
+        if setup_workflow "$repo_name" "$repo_path" "$workflow_file"; then
+            ((SUCCESS_COUNT++))
+        else
+            ((FAIL_COUNT++))
+        fi
     fi
-fi
-
-# alarm-monitor
-if [ -n "$ALARM_MONITOR_PATH" ]; then
-    if setup_workflow "alarm-monitor" "$ALARM_MONITOR_PATH" "$WORKFLOWS_DIR/build-alarm-monitor.yml"; then
-        ((SUCCESS_COUNT++))
-    else
-        ((FAIL_COUNT++))
-    fi
-fi
-
-# alarm-messenger
-if [ -n "$ALARM_MESSENGER_PATH" ]; then
-    if setup_workflow "alarm-messenger" "$ALARM_MESSENGER_PATH" "$WORKFLOWS_DIR/build-alarm-messenger.yml"; then
-        ((SUCCESS_COUNT++))
-    else
-        ((FAIL_COUNT++))
-    fi
-fi
+done
 
 # Zusammenfassung
 echo "=================================================="
