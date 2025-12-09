@@ -26,7 +26,19 @@ Siehe [docs/DOCKER_IMAGE_WORKFLOWS.md](../docs/DOCKER_IMAGE_WORKFLOWS.md) für:
 
 ## Schnellstart
 
-### Für alarm-mail Repository:
+### Automatische Installation (Empfohlen)
+
+Verwenden Sie das Setup-Skript für eine einfache Installation:
+
+```bash
+./setup-workflows.sh
+```
+
+Das Skript führt Sie durch den gesamten Setup-Prozess.
+
+### Manuelle Installation
+
+#### Für alarm-mail Repository:
 ```bash
 cd /pfad/zum/alarm-mail
 mkdir -p .github/workflows
@@ -46,7 +58,7 @@ git commit -m "Add automated Docker image build workflow"
 git push
 ```
 
-### Für alarm-messenger Repository:
+#### Für alarm-messenger Repository:
 ```bash
 cd /pfad/zum/alarm-messenger
 mkdir -p .github/workflows

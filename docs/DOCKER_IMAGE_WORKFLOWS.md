@@ -22,9 +22,24 @@ Für jeden der drei Komponenten-Repositories (`alarm-mail`, `alarm-monitor`, `al
 
 ## Einrichtung der Workflows
 
-### Schritt 1: Workflows in die Komponenten-Repositories kopieren
+### Option 1: Automatisches Setup (Empfohlen)
 
-Für jedes der drei Repositories müssen die entsprechenden Workflow-Dateien kopiert werden:
+Verwenden Sie das mitgelieferte Setup-Skript für eine einfache Installation:
+
+```bash
+cd /pfad/zum/alarm-system
+./setup-workflows.sh
+```
+
+Das Skript wird Sie durch den Setup-Prozess führen und:
+- Prüfen ob die Repositories vorhanden sind
+- Prüfen ob Dockerfiles vorhanden sind
+- Die Workflow-Dateien kopieren
+- Optional: Änderungen committen und pushen
+
+### Option 2: Manuelles Setup
+
+Für jedes der drei Repositories müssen die entsprechenden Workflow-Dateien manuell kopiert werden:
 
 #### Für alarm-mail Repository:
 ```bash
