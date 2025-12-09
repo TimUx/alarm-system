@@ -6,7 +6,9 @@ Dieser Ordner enthält GitHub Actions Workflow-Vorlagen für das automatische Ba
 
 - **build-alarm-mail.yml** - Workflow für alarm-mail Repository
 - **build-alarm-monitor.yml** - Workflow für alarm-monitor Repository  
-- **build-alarm-messenger.yml** - Workflow für alarm-messenger Repository
+- **build-alarm-messenger.yml** - Workflow für alarm-messenger Repository (baut aus `server/` Kontext)
+
+**Hinweis:** Der alarm-messenger Workflow ist für Repositories konfiguriert, bei denen das Dockerfile im `server/` Unterordner liegt, da dort alle backend-relevanten Daten sind.
 
 ## Verwendung
 
@@ -67,6 +69,8 @@ git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build workflow"
 git push
 ```
+
+**Hinweis:** Der alarm-messenger Workflow baut aus dem `server/` Kontext, da dort das Dockerfile und alle backend-relevanten Daten liegen.
 
 ## Was die Workflows tun
 
