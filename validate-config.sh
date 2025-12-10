@@ -118,21 +118,6 @@ if [[ "$ALARM_MESSENGER_SERVER_URL" == *"localhost"* ]]; then
 fi
 
 echo ""
-echo "=== Optional Configuration ==="
-
-if [ ! -z "$FIRE_DEPARTMENT_NAME" ]; then
-    echo -e "${GREEN}✓ FIRE_DEPARTMENT_NAME is set: $FIRE_DEPARTMENT_NAME${NC}"
-fi
-
-if [ ! -z "$DEFAULT_LATITUDE" ] && [ ! -z "$DEFAULT_LONGITUDE" ]; then
-    echo -e "${GREEN}✓ Default location is set${NC}"
-fi
-
-if [ ! -z "$ALARM_MONITOR_GRUPPEN" ]; then
-    echo -e "${GREEN}✓ Group filter is set: $ALARM_MONITOR_GRUPPEN${NC}"
-fi
-
-echo ""
 echo "=== Docker Environment Check ==="
 
 # Check if Docker is installed

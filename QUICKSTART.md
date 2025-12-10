@@ -66,9 +66,6 @@ ALARM_MESSENGER_JWT_SECRET=<generierter-schlüssel-3>
 # Server-URL für Messenger (PFLICHT)
 # Ersetzen Sie mit Ihrer Server-IP oder Domain
 ALARM_MESSENGER_SERVER_URL=http://192.168.1.100:3000
-
-# Feuerwehr-Name (Optional)
-FIRE_DEPARTMENT_NAME=Feuerwehr Ihre Stadt
 ```
 
 **API-Schlüssel generieren:**

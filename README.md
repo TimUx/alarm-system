@@ -202,21 +202,6 @@ ALARM_MESSENGER_JWT_SECRET=jwt-geheimnis-für-admin
 
 **Wichtig:** Die API-Schlüssel müssen zwischen den Services übereinstimmen!
 
-#### Optional: Gruppenfilter
-```bash
-# Nur Alarme für bestimmte TME-Codes anzeigen
-ALARM_MONITOR_GRUPPEN=WIL26,WIL41
-```
-
-#### Optional: Anzeige-Anpassung
-```bash
-FIRE_DEPARTMENT_NAME=Feuerwehr Musterstadt
-ALARM_MONITOR_DISPLAY_DURATION=30  # Minuten
-DEFAULT_LATITUDE=51.2345
-DEFAULT_LONGITUDE=9.8765
-DEFAULT_LOCATION_NAME=Wache Musterstadt
-```
-
 ### Vollständige Konfigurationsreferenz
 
 Siehe [.env.example](./.env.example) für alle verfügbaren Optionen mit Erklärungen.
