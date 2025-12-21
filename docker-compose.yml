@@ -110,6 +110,16 @@ services:
       # CORS Configuration
       - CORS_ORIGINS=${ALARM_MESSENGER_CORS_ORIGINS:-*}
       
+      # Push Notifications (Optional)
+      - ENABLE_FCM=${ALARM_MESSENGER_ENABLE_FCM:-false}
+      - FCM_SERVICE_ACCOUNT_PATH=${ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH:-}
+      - ENABLE_APNS=${ALARM_MESSENGER_ENABLE_APNS:-false}
+      - APNS_KEY_PATH=${ALARM_MESSENGER_APNS_KEY_PATH:-}
+      - APNS_KEY_ID=${ALARM_MESSENGER_APNS_KEY_ID:-}
+      - APNS_TEAM_ID=${ALARM_MESSENGER_APNS_TEAM_ID:-}
+      - APNS_TOPIC=${ALARM_MESSENGER_APNS_TOPIC:-}
+      - APNS_PRODUCTION=${ALARM_MESSENGER_APNS_PRODUCTION:-false}
+      
       - TZ=${TZ:-Europe/Berlin}
     volumes:
       - alarm-messenger-data:/app/data
