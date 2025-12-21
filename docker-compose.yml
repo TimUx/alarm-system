@@ -100,6 +100,9 @@ services:
       # Server URL for QR code generation (must be externally accessible URL)
       - SERVER_URL=${ALARM_MESSENGER_SERVER_URL:-http://localhost:3000}
       
+      # Organization/Fire Department Name
+      - ORGANIZATION_NAME=${ALARM_MESSENGER_ORGANIZATION_NAME:-Feuerwehr Musterstadt}
+      
       # Security
       - API_SECRET_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
       - JWT_SECRET=${ALARM_MESSENGER_JWT_SECRET}
