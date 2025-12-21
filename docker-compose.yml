@@ -100,12 +100,25 @@ services:
       # Server URL for QR code generation (must be externally accessible URL)
       - SERVER_URL=${ALARM_MESSENGER_SERVER_URL:-http://localhost:3000}
       
+      # Organization/Fire Department Name
+      - ORGANIZATION_NAME=${ALARM_MESSENGER_ORGANIZATION_NAME:-Feuerwehr Musterstadt}
+      
       # Security
       - API_SECRET_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
       - JWT_SECRET=${ALARM_MESSENGER_JWT_SECRET}
       
       # CORS Configuration
       - CORS_ORIGINS=${ALARM_MESSENGER_CORS_ORIGINS:-*}
+      
+      # Push Notifications (Optional)
+      - ENABLE_FCM=${ALARM_MESSENGER_ENABLE_FCM:-false}
+      - FCM_SERVICE_ACCOUNT_PATH=${ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH:-}
+      - ENABLE_APNS=${ALARM_MESSENGER_ENABLE_APNS:-false}
+      - APNS_KEY_PATH=${ALARM_MESSENGER_APNS_KEY_PATH:-}
+      - APNS_KEY_ID=${ALARM_MESSENGER_APNS_KEY_ID:-}
+      - APNS_TEAM_ID=${ALARM_MESSENGER_APNS_TEAM_ID:-}
+      - APNS_TOPIC=${ALARM_MESSENGER_APNS_TOPIC:-}
+      - APNS_PRODUCTION=${ALARM_MESSENGER_APNS_PRODUCTION:-false}
       
       - TZ=${TZ:-Europe/Berlin}
     volumes:
