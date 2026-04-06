@@ -1003,17 +1003,7 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
         apt)
             eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool"
             # Chromium: Name unterscheidet sich je nach Distro/Arch
-            # Auf Raspberry Pi wird kweb als Kiosk-Browser verwendet.
-            # Auf anderen Systemen wird Chromium eingesetzt.
-            if [[ "$IS_RPI" == "true" ]]; then
-                info "Raspberry Pi erkannt: installiere kweb als Kiosk-Browser."
-                if eval "${PKG_INSTALL} kweb" 2>/dev/null; then
-                    KIOSK_BIN="kweb"
-                else
-                    warn "kweb-Paket nicht gefunden – bitte manuell installieren."
-                    KIOSK_BIN="kweb"
-                fi
-            elif eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
+            if eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
                 KIOSK_BIN="chromium-browser"
             elif eval "${PKG_INSTALL} chromium" 2>/dev/null; then
                 KIOSK_BIN="chromium"
@@ -1061,13 +1051,7 @@ done
 
 EOF
 
-    # kweb (Raspberry Pi) benötigt keine Chromium-spezifischen Flags
-    if [[ "$IS_RPI" == "true" && "$KIOSK_BIN" == "kweb" ]]; then
-        cat >> "${KIOSK_SCRIPT}" <<EOF
-exec \${BROWSER} -F "\${KIOSK_URL}"
-EOF
-    else
-        cat >> "${KIOSK_SCRIPT}" <<EOF
+    cat >> "${KIOSK_SCRIPT}" <<EOF
 # Chromium-Profil vorbereiten (verhindert "abgestürzt"-Dialog)
 PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 mkdir -p "\${PROFILE_DIR}/Default"
@@ -1089,7 +1073,6 @@ exec \${BROWSER} \\
     --user-data-dir="\${PROFILE_DIR}" \\
     "\${KIOSK_URL}"
 EOF
-    fi
     chmod +x "${KIOSK_SCRIPT}"
 
     # Openbox-Autostart
