@@ -91,15 +91,18 @@ check_required "ALARM_MONITOR_API_KEY" "$ALARM_MONITOR_API_KEY" "API key for ala
 check_required "ALARM_MONITOR_SETTINGS_PASSWORD" "$ALARM_MONITOR_SETTINGS_PASSWORD" "Password for alarm-monitor settings page"
 check_required "ALARM_MESSENGER_API_SECRET_KEY" "$ALARM_MESSENGER_API_SECRET_KEY" "API key for alarm-messenger"
 check_required "ALARM_MESSENGER_JWT_SECRET" "$ALARM_MESSENGER_JWT_SECRET" "JWT secret for admin interface"
+check_required "ALARM_MESSENGER_SESSION_SECRET" "$ALARM_MESSENGER_SESSION_SECRET" "Session secret for alarm-messenger admin session management"
 
 check_not_default "ALARM_MONITOR_API_KEY" "$ALARM_MONITOR_API_KEY" "change-me-to-random-api-key-for-monitor"
 check_not_default "ALARM_MONITOR_SETTINGS_PASSWORD" "$ALARM_MONITOR_SETTINGS_PASSWORD" "change-me-to-random-settings-password"
 check_not_default "ALARM_MESSENGER_API_SECRET_KEY" "$ALARM_MESSENGER_API_SECRET_KEY" "change-me-to-random-api-key-for-messenger"
 check_not_default "ALARM_MESSENGER_JWT_SECRET" "$ALARM_MESSENGER_JWT_SECRET" "change-me-to-random-jwt-secret"
+check_not_default "ALARM_MESSENGER_SESSION_SECRET" "$ALARM_MESSENGER_SESSION_SECRET" "change-me-to-random-session-secret"
 
 check_api_key_strength "ALARM_MONITOR_API_KEY" "$ALARM_MONITOR_API_KEY"
 check_api_key_strength "ALARM_MESSENGER_API_SECRET_KEY" "$ALARM_MESSENGER_API_SECRET_KEY"
 check_api_key_strength "ALARM_MESSENGER_JWT_SECRET" "$ALARM_MESSENGER_JWT_SECRET"
+check_api_key_strength "ALARM_MESSENGER_SESSION_SECRET" "$ALARM_MESSENGER_SESSION_SECRET"
 
 # Check if API keys are different
 if [ "$ALARM_MONITOR_API_KEY" = "$ALARM_MESSENGER_API_SECRET_KEY" ]; then

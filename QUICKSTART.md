@@ -135,6 +135,7 @@ ALARM_MAIL_IMAP_PASSWORD=IhrSicheresPasswort
 ALARM_MONITOR_API_KEY=<generierter-schlüssel-1>
 ALARM_MESSENGER_API_SECRET_KEY=<generierter-schlüssel-2>
 ALARM_MESSENGER_JWT_SECRET=<generierter-schlüssel-3>
+ALARM_MESSENGER_SESSION_SECRET=<generierter-schlüssel-4>
 
 # Passwort für die Einstellungsseite des Monitors (PFLICHT)
 # Führen Sie aus: openssl rand -hex 16
@@ -148,10 +149,11 @@ ALARM_MESSENGER_SERVER_URL=http://192.168.1.100:3000
 **API-Schlüssel generieren:**
 
 ```bash
-# Vier verschiedene Schlüssel/Passwörter generieren
+# Fünf verschiedene Schlüssel/Passwörter generieren
 openssl rand -hex 32  # Für ALARM_MONITOR_API_KEY
 openssl rand -hex 32  # Für ALARM_MESSENGER_API_SECRET_KEY
 openssl rand -hex 32  # Für ALARM_MESSENGER_JWT_SECRET
+openssl rand -hex 32  # Für ALARM_MESSENGER_SESSION_SECRET
 openssl rand -hex 16  # Für ALARM_MONITOR_SETTINGS_PASSWORD
 ```
 
@@ -231,18 +233,15 @@ curl -X POST http://localhost:8000/api/alarm \
   -d '{
     "incident_number": "TEST-001",
     "timestamp": "'$(date -Iseconds)'",
-    "keyword": "BRAND 3",
-    "sub_keyword": "Personen in Gefahr",
+    "keyword": "TESTMELDUNG",
+    "keyword_primary": "TESTMELDUNG",
     "diagnosis": "Wohnungsbrand - TESTMELDUNG",
-    "remarks": "Dies ist ein Test",
-    "location": {
-      "street": "Teststraße",
-      "house_number": "123",
-      "city": "Teststadt",
-      "latitude": 51.2345,
-      "longitude": 9.8765
-    },
-    "aao": "LF Test 1;DLK Test"
+    "remark": "Dies ist ein Test",
+    "location": "Teststraße 123, Teststadt",
+    "latitude": 51.2345,
+    "longitude": 9.8765,
+    "aao_groups": ["LF Test 1", "DLK Test"],
+    "dispatch_group_codes": ["TST01"]
   }'
 
 # Test-Alarm an Messenger senden
@@ -252,7 +251,7 @@ curl -X POST http://localhost:3000/api/emergencies \
   -d '{
     "emergencyNumber": "TEST-001",
     "emergencyDate": "'$(date -Iseconds)'",
-    "emergencyKeyword": "BRAND 3",
+    "emergencyKeyword": "TESTMELDUNG",
     "emergencyDescription": "Wohnungsbrand - TESTMELDUNG",
     "emergencyLocation": "Teststraße 123, Teststadt"
   }'

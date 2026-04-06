@@ -110,6 +110,7 @@ Nur folgende Dienste benötigen externe Ports:
    ALARM_MONITOR_API_KEY=generierter-schlüssel-für-monitor
    ALARM_MESSENGER_API_SECRET_KEY=generierter-schlüssel-für-messenger
    ALARM_MESSENGER_JWT_SECRET=generierter-jwt-secret
+   ALARM_MESSENGER_SESSION_SECRET=generierter-session-secret
    
    # Passwort für die Einstellungsseite (erzeugt mit openssl rand -hex 16)
    ALARM_MONITOR_SETTINGS_PASSWORD=generiertes-passwort-für-einstellungen
@@ -201,6 +202,7 @@ ALARM_MAIL_POLL_INTERVAL=60  # Abrufintervall in Sekunden
 ALARM_MONITOR_API_KEY=zufälliger-schlüssel-32-zeichen
 ALARM_MESSENGER_API_SECRET_KEY=anderer-zufälliger-schlüssel
 ALARM_MESSENGER_JWT_SECRET=jwt-geheimnis-für-admin
+ALARM_MESSENGER_SESSION_SECRET=session-geheimnis-für-admin
 
 # Generieren mit: openssl rand -hex 16
 ALARM_MONITOR_SETTINGS_PASSWORD=passwort-für-einstellungsseite
