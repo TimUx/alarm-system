@@ -40,6 +40,17 @@ services:
       - ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
       - ALARM_MAIL_ALARM_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
       
+      # Optional: HTTP request settings
+      # - ALARM_MAIL_HTTP_TIMEOUT=${ALARM_MAIL_HTTP_TIMEOUT:-10}
+      # - ALARM_MAIL_ALARM_MONITOR_VERIFY_SSL=${ALARM_MAIL_ALARM_MONITOR_VERIFY_SSL:-true}
+      # - ALARM_MAIL_ALARM_MESSENGER_VERIFY_SSL=${ALARM_MAIL_ALARM_MESSENGER_VERIFY_SSL:-true}
+      
+      # Optional: Deduplication TTL in seconds (default: 300)
+      # - ALARM_MAIL_DEDUP_TTL=${ALARM_MAIL_DEDUP_TTL:-300}
+      
+      # Optional: Log level (DEBUG, INFO, WARNING, ERROR)
+      # - ALARM_MAIL_LOG_LEVEL=${ALARM_MAIL_LOG_LEVEL:-INFO}
+      
       - TZ=${TZ:-Europe/Berlin}
     depends_on:
       alarm-monitor:
@@ -66,12 +77,25 @@ services:
       # API Configuration
       - ALARM_DASHBOARD_API_KEY=${ALARM_MONITOR_API_KEY}
       
+      # Password for the settings page (required to save settings via web UI)
+      - ALARM_DASHBOARD_SETTINGS_PASSWORD=${ALARM_MONITOR_SETTINGS_PASSWORD}
+      
       # Messenger Integration (for participant responses)
       - ALARM_DASHBOARD_MESSENGER_SERVER_URL=http://alarm-messenger:3000
       - ALARM_DASHBOARD_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
       
       # Display Configuration
       - ALARM_DASHBOARD_DISPLAY_DURATION_MINUTES=${ALARM_MONITOR_DISPLAY_DURATION:-30}
+      
+      # Optional: OpenRouteService API key for navigation/routing
+      # - ALARM_DASHBOARD_ORS_API_KEY=${ALARM_MONITOR_ORS_API_KEY}
+      
+      # Optional: Prometheus metrics endpoint token (required to enable /api/metrics)
+      # - ALARM_DASHBOARD_METRICS_TOKEN=${ALARM_MONITOR_METRICS_TOKEN}
+      
+      # Optional: Gunicorn worker/thread settings (keep workers=1 for single-process state)
+      # - ALARM_DASHBOARD_GUNICORN_WORKERS=${ALARM_MONITOR_GUNICORN_WORKERS:-1}
+      # - ALARM_DASHBOARD_GUNICORN_THREADS=${ALARM_MONITOR_GUNICORN_THREADS:-8}
       
       - TZ=${TZ:-Europe/Berlin}
     volumes:

@@ -42,7 +42,7 @@ Dieses Repository stellt die zentrale Konfiguration und Docker-Compose-Orchestri
    - Leitet Alarme an Monitor und Messenger weiter
    - Keine externen Ports erforderlich
 
-2. **[alarm-monitor](https://github.com/TimUx/alarm-monitor/tree/copilot/integrate-alarm-messenger-function)**
+2. **[alarm-monitor](https://github.com/TimUx/alarm-monitor)**
    - Webbasiertes Dashboard zur Alarmvisualisierung
    - Zeigt Karten, Wetter, Einsatzkräfte
    - Ruft Rückmeldungen vom Messenger ab
@@ -110,6 +110,9 @@ Nur folgende Dienste benötigen externe Ports:
    ALARM_MONITOR_API_KEY=generierter-schlüssel-für-monitor
    ALARM_MESSENGER_API_SECRET_KEY=generierter-schlüssel-für-messenger
    ALARM_MESSENGER_JWT_SECRET=generierter-jwt-secret
+   
+   # Passwort für die Einstellungsseite (mit openssl rand -hex 16, erzeugt 32 Zeichen)
+   ALARM_MONITOR_SETTINGS_PASSWORD=generiertes-passwort-für-einstellungen
    
    # Server-URL für Messenger (für QR-Code-Generierung)
    ALARM_MESSENGER_SERVER_URL=http://ihre-server-ip:3000
@@ -198,6 +201,9 @@ ALARM_MAIL_POLL_INTERVAL=60  # Abrufintervall in Sekunden
 ALARM_MONITOR_API_KEY=zufälliger-schlüssel-32-zeichen
 ALARM_MESSENGER_API_SECRET_KEY=anderer-zufälliger-schlüssel
 ALARM_MESSENGER_JWT_SECRET=jwt-geheimnis-für-admin
+
+# Generieren mit: openssl rand -hex 16
+ALARM_MONITOR_SETTINGS_PASSWORD=passwort-für-einstellungsseite
 ```
 
 **Wichtig:** Die API-Schlüssel müssen zwischen den Services übereinstimmen!

@@ -137,6 +137,7 @@ generate-keys:
 	@echo "Generating API keys..."
 	@echo ""
 	@echo "ALARM_MONITOR_API_KEY=$$(openssl rand -hex 32)"
+	@echo "ALARM_MONITOR_SETTINGS_PASSWORD=$$(openssl rand -hex 16)"
 	@echo "ALARM_MESSENGER_API_SECRET_KEY=$$(openssl rand -hex 32)"
 	@echo "ALARM_MESSENGER_JWT_SECRET=$$(openssl rand -hex 32)"
 	@echo ""
