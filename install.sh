@@ -691,6 +691,7 @@ if [[ "$INSTALL_MONITOR" == "true" ]]; then
       - alarm-network
     environment:
       - ALARM_DASHBOARD_API_KEY=${ALARM_MONITOR_API_KEY}
+      - ALARM_DASHBOARD_SETTINGS_PASSWORD=${ALARM_MONITOR_SETTINGS_PASSWORD}
 EOF
 
     if [[ "$INSTALL_MESSENGER" == "true" ]]; then
