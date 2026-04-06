@@ -2,6 +2,79 @@
 
 Schnellanleitung für die Installation und Inbetriebnahme des Alarm-Systems.
 
+## 🚀 1-Click Installation (empfohlen)
+
+Das einfachste Vorgehen: das interaktive Installationsskript direkt herunterladen und ausführen.
+Es erkennt automatisch die Prozessor-Architektur und Linux-Distribution, installiert Docker,
+fragt alle nötigen Zugangsdaten interaktiv ab und richtet das System vollständig ein.
+
+### Voraussetzungen
+
+- Linux-Server (beliebige Distribution, beliebige Architektur – x86_64, arm64, armv7l …)
+- Benutzer mit `sudo`-Rechten (das Skript **darf nicht als root** gestartet werden)
+- `curl` oder `wget` muss installiert sein
+- Internetzugang (für Docker-Images und optionale Pakete)
+
+### Option A – curl (empfohlen)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
+```
+
+> **Sicherheitshinweis:** Wer Skripte vor der Ausführung prüfen möchte, nutzt Option C.
+
+### Option B – wget
+
+```bash
+wget -qO- https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
+```
+
+### Option C – Manuell herunterladen & prüfen (sicherste Variante)
+
+```bash
+# Skript herunterladen
+curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh -o install.sh
+
+# Optional: Inhalt prüfen
+less install.sh
+
+# Ausführbar machen und starten
+chmod +x install.sh
+./install.sh
+```
+
+### Was passiert beim Ausführen?
+
+Das Skript führt Sie interaktiv durch folgende Schritte:
+
+1. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
+   (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
+2. **Kiosk-Modus** – Soll ein Browser im Vollbild-Kiosk-Modus eingerichtet werden?
+3. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+   *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
+4. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet.
+5. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt.
+
+Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
+
+```
+/opt/alarm-system/
+├── .env                 # Konfiguration (chmod 600)
+├── docker-compose.yml   # Generierte Compose-Datei
+├── caddy/Caddyfile      # Reverse-Proxy-Konfiguration (optional)
+├── update.sh            # System aktualisieren
+├── backup.sh            # Daten sichern
+├── status.sh            # Container-Status anzeigen
+├── logs.sh              # Live-Logs
+└── kiosk.sh             # Kiosk-Browser starten (optional)
+```
+
+---
+
+## Manuelle Installation
+
+Falls Sie das Skript nicht verwenden möchten, folgt die manuelle Schritt-für-Schritt-Anleitung.
+
 ## Voraussetzungen
 
 - Linux-Server (Ubuntu 20.04+ oder Debian 11+ empfohlen)
