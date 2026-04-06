@@ -111,7 +111,7 @@ Nur folgende Dienste benötigen externe Ports:
    ALARM_MESSENGER_API_SECRET_KEY=generierter-schlüssel-für-messenger
    ALARM_MESSENGER_JWT_SECRET=generierter-jwt-secret
    
-   # Passwort für die Einstellungsseite (mit openssl rand -hex 16, erzeugt 32 Zeichen)
+   # Passwort für die Einstellungsseite (erzeugt mit openssl rand -hex 16)
    ALARM_MONITOR_SETTINGS_PASSWORD=generiertes-passwort-für-einstellungen
    
    # Server-URL für Messenger (für QR-Code-Generierung)

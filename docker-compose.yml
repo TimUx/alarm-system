@@ -48,6 +48,9 @@ services:
       # Optional: Deduplication TTL in seconds (default: 300)
       # - ALARM_MAIL_DEDUP_TTL=${ALARM_MAIL_DEDUP_TTL:-300}
       
+      # Optional: SQLite file path for persistent deduplication (survives restarts)
+      # - ALARM_MAIL_DEDUP_DB=${ALARM_MAIL_DEDUP_DB:-}
+      
       # Optional: Log level (DEBUG, INFO, WARNING, ERROR)
       # - ALARM_MAIL_LOG_LEVEL=${ALARM_MAIL_LOG_LEVEL:-INFO}
       
@@ -92,6 +95,10 @@ services:
       
       # Optional: Prometheus metrics endpoint token (required to enable /api/metrics)
       # - ALARM_DASHBOARD_METRICS_TOKEN=${ALARM_MONITOR_METRICS_TOKEN}
+      
+      # Optional: Custom file paths for persistent data
+      # - ALARM_DASHBOARD_HISTORY_FILE=${ALARM_MONITOR_HISTORY_FILE:-}
+      # - ALARM_DASHBOARD_SETTINGS_FILE=${ALARM_MONITOR_SETTINGS_FILE:-}
       
       # Optional: Gunicorn worker/thread settings (keep workers=1 for single-process state)
       # - ALARM_DASHBOARD_GUNICORN_WORKERS=${ALARM_MONITOR_GUNICORN_WORKERS:-1}
