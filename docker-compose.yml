@@ -61,8 +61,7 @@ services:
       alarm-messenger:
         condition: service_healthy
     healthcheck:
-      # alarm-mail is an IMAP poller with no HTTP server; check for a live process instead
-      test: ["CMD", "pgrep", "-f", "alarm_mail"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       start_period: 30s
@@ -138,6 +137,7 @@ services:
       # Security
       - API_SECRET_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
       - JWT_SECRET=${ALARM_MESSENGER_JWT_SECRET}
+      - SESSION_SECRET=${ALARM_MESSENGER_SESSION_SECRET}
       
       # CORS Configuration
       - CORS_ORIGINS=${ALARM_MESSENGER_CORS_ORIGINS:-*}

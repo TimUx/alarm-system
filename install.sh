@@ -259,6 +259,7 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
 
     MESSENGER_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
     JWT_SECRET_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
+    SESSION_SECRET_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
 
     prompt_value ALARM_MESSENGER_API_SECRET_KEY \
         "API-Schlüssel für alarm-messenger" \
@@ -267,6 +268,10 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
     prompt_value ALARM_MESSENGER_JWT_SECRET \
         "JWT-Secret für Admin-Interface" \
         "${JWT_SECRET_SUGGESTION}" "true"
+
+    prompt_value ALARM_MESSENGER_SESSION_SECRET \
+        "Session-Secret für Admin-Session-Verwaltung" \
+        "${SESSION_SECRET_SUGGESTION}" "true"
 
     prompt_optional ALARM_MESSENGER_PORT "Port für alarm-messenger" "3000"
     prompt_value ALARM_MESSENGER_ORGANIZATION_NAME "Name der Organisation / Feuerwehr" "Feuerwehr Musterstadt" false
@@ -478,6 +483,7 @@ ALARM_MESSENGER_SERVER_URL=${ALARM_MESSENGER_SERVER_URL}
 ALARM_MESSENGER_ORGANIZATION_NAME=${ALARM_MESSENGER_ORGANIZATION_NAME}
 ALARM_MESSENGER_API_SECRET_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
 ALARM_MESSENGER_JWT_SECRET=${ALARM_MESSENGER_JWT_SECRET}
+ALARM_MESSENGER_SESSION_SECRET=${ALARM_MESSENGER_SESSION_SECRET}
 ALARM_MESSENGER_CORS_ORIGINS=${ALARM_MESSENGER_CORS_ORIGINS:-*}
 ${ALARM_MESSENGER_DOMAIN:+ALARM_MESSENGER_DOMAIN=${ALARM_MESSENGER_DOMAIN}}
 
@@ -609,6 +615,7 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
       - ORGANIZATION_NAME=${ALARM_MESSENGER_ORGANIZATION_NAME:-Feuerwehr Musterstadt}
       - API_SECRET_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
       - JWT_SECRET=${ALARM_MESSENGER_JWT_SECRET}
+      - SESSION_SECRET=${ALARM_MESSENGER_SESSION_SECRET}
       - CORS_ORIGINS=${ALARM_MESSENGER_CORS_ORIGINS:-*}
       - ENABLE_FCM=${ALARM_MESSENGER_ENABLE_FCM:-false}
       - FCM_SERVICE_ACCOUNT_PATH=${ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH:-}

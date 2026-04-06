@@ -18,8 +18,11 @@ Das Alarm-System besteht aus drei Hauptkomponenten, die als Docker-Container bet
 - Gunicorn
 
 **Kommunikation:**
-- **Eingehend:** Keine (kein externer Port)
-  - HTTP Health-Check (intern, Port 8000): `/health`
+- **Eingehend:**
+  - Port 8000/TCP (intern, nicht exponiert): Flask HTTP-Server
+  - HTTP GET `/health` (intern): Health Check
+  - HTTP GET `/` (intern): Service-Info
+  - HTTP GET `/metrics` (intern): Prometheus-Metriken
 - **Ausgehend:**
   - IMAP-Server (Port 993/TCP, SSL)
   - alarm-monitor (HTTP, intern)
@@ -38,7 +41,7 @@ ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
 ALARM_MAIL_ALARM_MESSENGER_API_KEY
 ```
 
-**Hinweis:** alarm-mail läuft intern auf Port 8000 mit einer Flask-App, die einen `/health` Endpunkt bereitstellt. Der Port wird jedoch nicht nach außen exponiert, da kein externer Zugriff benötigt wird.
+**Hinweis:** alarm-mail läuft auf Port 8000 als Flask/Gunicorn-Anwendung mit `/health`, `/` und `/metrics` Endpunkten. Der Port wird nicht nach außen exponiert, da kein externer Zugriff benötigt wird. Der interne Health-Check (`curl http://localhost:8000/health`) wird von Docker verwendet.
 
 ### 2. alarm-monitor
 
@@ -57,7 +60,7 @@ ALARM_MAIL_ALARM_MESSENGER_API_KEY
 - **Ausgehend:**
   - alarm-messenger (HTTP GET, intern): Teilnehmer-Abfragen
 
-**Docker-Image:** `ghcr.io/timux/alarm-monitor:copilot-integrate-alarm-messenger-function`
+**Docker-Image:** `ghcr.io/timux/alarm-monitor:latest`
 
 **Wichtige Umgebungsvariablen:**
 ```
@@ -69,8 +72,13 @@ ALARM_DASHBOARD_MESSENGER_API_KEY
 **API-Endpunkte:**
 - `POST /api/alarm` - Alarm empfangen (mit X-API-Key Header)
 - `GET /api/alarm` - Aktuellen Alarm abrufen
-- `GET /api/history` - Alarm-Historie abrufen
+- `GET /api/stream` - Server-Sent Events (SSE) für Echtzeit-Updates
+- `GET /api/history` - Alarm-Historie abrufen (Response: `{"history": [...]}`)
 - `GET /api/alarm/participants/<incident_number>` - Teilnehmer eines Einsatzes
+- `GET /api/settings` - Aktuelle Einstellungen abrufen
+- `POST /api/settings` - Einstellungen aktualisieren (mit X-Settings-Password + X-CSRF-Token)
+- `GET /api/route` - Routing-Proxy für OpenRouteService
+- `GET /api/metrics` - Prometheus-Metriken (mit X-Metrics-Token, optional)
 - `GET /health` - Health Check
 
 ### 3. alarm-messenger
@@ -99,17 +107,20 @@ ALARM_DASHBOARD_MESSENGER_API_KEY
 SERVER_URL (für QR-Code-Generierung)
 API_SECRET_KEY
 JWT_SECRET
+SESSION_SECRET
 ```
 
 **API-Endpunkte:**
 - `POST /api/emergencies` - Neuen Einsatz erstellen (mit X-API-Key Header)
-- `GET /api/emergencies` - Alle Einsätze abrufen
-- `GET /api/emergencies/:id` - Spezifischen Einsatz abrufen
-- `GET /api/emergencies/:id/participants` - Teilnehmer abrufen (mit X-API-Key)
-- `GET /api/emergencies/:id/responses` - Alle Rückmeldungen
-- `POST /api/emergencies/:id/responses` - Rückmeldung senden
+- `GET /api/emergencies` - Alle Einsätze abrufen (paginiert: `{"data": [...], "pagination": {...}}`; X-API-Key oder X-Device-Token)
+- `GET /api/emergencies/:id` - Spezifischen Einsatz abrufen (mit X-Device-Token)
+- `GET /api/emergencies/:id/participants` - Teilnehmer abrufen (mit X-API-Key; Response: `{"emergencyId": ..., "totalParticipants": ..., "participants": [...]}`)
+- `GET /api/emergencies/:id/responses` - Alle Rückmeldungen (mit X-API-Key)
+- `POST /api/emergencies/:id/responses` - Rückmeldung senden (mit X-Device-Token; `{"participating": true/false}`)
+- `GET /api/groups` - Gruppen abrufen
 - `POST /api/devices/registration-token` - QR-Code generieren
 - `POST /api/devices/register` - Gerät registrieren
+- `GET /api/info` - Server-Informationen
 - `GET /health` - Health Check
 
 ## Kommunikationsflüsse
@@ -152,20 +163,26 @@ JWT_SECRET
 {
   "incident_number": "2024-001",
   "timestamp": "2024-12-08T14:30:00",
-  "keyword": "BRAND 3",
-  "sub_keyword": "Personen in Gefahr",
+  "timestamp_display": "08.12.2024 14:30:00",
+  "keyword": "BRAND 3 – Wohnungsbrand",
+  "keyword_primary": "BRAND 3",
+  "keyword_secondary": null,
   "diagnosis": "Wohnungsbrand",
-  "remarks": "Starke Rauchentwicklung",
-  "location": {
-    "street": "Hauptstraße",
-    "house_number": "123",
-    "city": "Musterstadt",
-    "district": "Nordviertel",
-    "latitude": 51.2345,
-    "longitude": 9.8765
+  "remark": "Starke Rauchentwicklung",
+  "location": "Hauptstraße 123, Nordviertel, Musterstadt",
+  "location_details": {
+    "street": "Hauptstraße 123",
+    "village": "Nordviertel",
+    "town": "Musterstadt",
+    "object": null,
+    "additional": null
   },
-  "aao": "LF Musterstadt 1;DLK Musterstadt",
-  "tme_codes": ["WIL26", "WIL41"]
+  "latitude": 51.2345,
+  "longitude": 9.8765,
+  "aao_groups": ["LF Musterstadt 1", "DLK Musterstadt"],
+  "groups": ["LF Musterstadt 1", "DLK Musterstadt"],
+  "dispatch_groups": ["LF Musterstadt 1", "DLK Musterstadt"],
+  "dispatch_group_codes": ["WIL26", "WIL41"]
 }
 ```
 
@@ -176,7 +193,7 @@ JWT_SECRET
   "emergencyDate": "2024-12-08T14:30:00",
   "emergencyKeyword": "BRAND 3",
   "emergencyDescription": "Wohnungsbrand",
-  "emergencyLocation": "Hauptstraße 123, 12345 Musterstadt",
+  "emergencyLocation": "Hauptstraße 123, Nordviertel, Musterstadt",
   "groups": "WIL26,WIL41"
 }
 ```
@@ -187,15 +204,19 @@ JWT_SECRET
 Mobile Gerät                     alarm-messenger              alarm-monitor
     │                                   │                            │
     │ POST /api/emergencies/:id/responses                           │
-    │ { status: 'accepted', ... }       │                            │
+    │ { participating: true }           │                            │
     ├──────────────────────────────────>│                            │
     │                                   │ Speichert in DB            │
     │                                   │                            │
-    │                                   │ GET /api/emergencies/:id/participants
-    │                                   │        X-API-Key           │
-    │                                   │<───────────────────────────┤
+    │              GET /api/emergencies?emergencyNumber=<ENR>        │
+    │              X-API-Key            │<───────────────────────────┤
+    │                                   │ { "data": [{id: "uuid", ...}], "pagination": {...} }
+    │                                   ├───────────────────────────>│
     │                                   │                            │
-    │                                   │ [Teilnehmer mit Details]   │
+    │              GET /api/emergencies/:uuid/participants           │
+    │              X-API-Key            │<───────────────────────────┤
+    │                                   │                            │
+    │                                   │ {"emergencyId": ..., "totalParticipants": ..., "participants": [...]}
     │                                   ├───────────────────────────>│
     │                                   │                            │
     │                                   │                   Dashboard aktualisiert
@@ -203,25 +224,26 @@ Mobile Gerät                     alarm-messenger              alarm-monitor
 
 **Teilnehmer-Response-Format:**
 ```json
-[
-  {
-    "id": 1,
-    "emergencyId": "emergency-uuid",
-    "deviceId": "device-uuid",
-    "status": "accepted",
-    "timestamp": "2024-12-08T14:31:00Z",
-    "responder": {
-      "firstName": "Max",
-      "lastName": "Mustermann",
-      "qualifications": {
-        "machinist": true,
-        "agt": true,
-        "paramedic": false
-      },
-      "leadershipRole": "groupLeader"
+{
+  "emergencyId": "emergency-uuid",
+  "totalParticipants": 1,
+  "participants": [
+    {
+      "id": "response-uuid",
+      "deviceId": "device-uuid",
+      "platform": "android",
+      "respondedAt": "2024-12-08T14:31:00Z",
+      "responder": {
+        "firstName": "Max",
+        "lastName": "Mustermann",
+        "qualMachinist": true,
+        "qualAgt": true,
+        "qualParamedic": false,
+        "leadershipRole": "groupLeader"
+      }
     }
-  }
-]
+  ]
+}
 ```
 
 ## Netzwerk-Konfiguration
@@ -238,7 +260,7 @@ networks:
 ```
 
 **DNS-Auflösung:**
-- `alarm-mail` → `alarm-mail:8000` (intern)
+- `alarm-mail` → `alarm-mail:8000` (intern, nicht exponiert)
 - `alarm-monitor` → `alarm-monitor:8000` (intern/extern)
 - `alarm-messenger` → `alarm-messenger:3000` (intern/extern)
 
@@ -271,7 +293,7 @@ networks:
 
 ### API-Schlüssel-Schema
 
-Das System verwendet drei verschiedene API-Schlüssel:
+Das System verwendet vier verschiedene Geheimnisse:
 
 1. **ALARM_MONITOR_API_KEY**
    - Verwendung: alarm-mail → alarm-monitor
@@ -281,13 +303,17 @@ Das System verwendet drei verschiedene API-Schlüssel:
 2. **ALARM_MESSENGER_API_SECRET_KEY**
    - Verwendung: 
      - alarm-mail → alarm-messenger (`POST /api/emergencies`)
-     - alarm-monitor → alarm-messenger (`GET /api/emergencies/:id/participants`)
+     - alarm-monitor → alarm-messenger (`GET /api/emergencies` und `GET /api/emergencies/:id/participants`)
    - Header: `X-API-Key: <key>`
 
 3. **ALARM_MESSENGER_JWT_SECRET**
    - Verwendung: Admin-Interface-Login
    - Auth: JWT Token nach Login
    - Endpunkte: `/api/admin/*`
+
+4. **ALARM_MESSENGER_SESSION_SECRET**
+   - Verwendung: Server-seitige Session-Verwaltung für Admin-Interface
+   - Intern: HttpOnly Cookie
 
 ### Sicherheits-Best-Practices
 
@@ -451,7 +477,7 @@ alarm-messenger: 2 GB RAM, 2 CPU
 Alle Services haben Health-Check-Endpunkte:
 
 ```bash
-curl http://localhost:8000/health  # alarm-mail
+curl http://localhost:8000/health  # alarm-mail (intern, nicht exponiert)
 curl http://localhost:8000/health  # alarm-monitor
 curl http://localhost:3000/health  # alarm-messenger
 ```

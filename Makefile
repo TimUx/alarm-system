@@ -140,5 +140,6 @@ generate-keys:
 	@echo "ALARM_MONITOR_SETTINGS_PASSWORD=$$(openssl rand -hex 16)"
 	@echo "ALARM_MESSENGER_API_SECRET_KEY=$$(openssl rand -hex 32)"
 	@echo "ALARM_MESSENGER_JWT_SECRET=$$(openssl rand -hex 32)"
+	@echo "ALARM_MESSENGER_SESSION_SECRET=$$(openssl rand -hex 32)"
 	@echo ""
 	@echo "Copy these values to your .env file"
