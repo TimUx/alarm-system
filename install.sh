@@ -995,7 +995,7 @@ fi
 # Schritt H: Docker Images ziehen
 # ---------------------------------------------------------------------------
 step "Docker Images herunterladen"
-sg docker -c "cd '${INSTALL_DIR}' && docker compose pull"
+sudo sh -c "cd '${INSTALL_DIR}' && docker compose pull"
 ok "Images heruntergeladen."
 
 # ---------------------------------------------------------------------------
@@ -1003,9 +1003,9 @@ ok "Images heruntergeladen."
 # ---------------------------------------------------------------------------
 step "Dienste starten"
 if [[ "$INSTALL_CADDY" == "true" ]]; then
-    sg docker -c "cd '${INSTALL_DIR}' && docker compose --profile with-caddy up -d"
+    sudo sh -c "cd '${INSTALL_DIR}' && docker compose --profile with-caddy up -d"
 else
-    sg docker -c "cd '${INSTALL_DIR}' && docker compose up -d"
+    sudo sh -c "cd '${INSTALL_DIR}' && docker compose up -d"
 fi
 ok "Dienste gestartet."
 
