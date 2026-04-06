@@ -1003,15 +1003,15 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
         apt)
             eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool"
             # Chromium: Name unterscheidet sich je nach Distro/Arch
-            # Auf Raspberry Pi wird kweb explizit NICHT verwendet – stattdessen
-            # direkt chromium installieren.
+            # Auf Raspberry Pi wird kweb als Kiosk-Browser verwendet.
+            # Auf anderen Systemen wird Chromium eingesetzt.
             if [[ "$IS_RPI" == "true" ]]; then
-                info "Raspberry Pi erkannt: kweb wird nicht verwendet, installiere chromium."
-                if eval "${PKG_INSTALL} chromium" 2>/dev/null; then
-                    KIOSK_BIN="chromium"
+                info "Raspberry Pi erkannt: installiere kweb als Kiosk-Browser."
+                if eval "${PKG_INSTALL} kweb" 2>/dev/null; then
+                    KIOSK_BIN="kweb"
                 else
-                    warn "Kein Chromium-Paket gefunden – bitte manuell installieren."
-                    KIOSK_BIN="chromium"
+                    warn "kweb-Paket nicht gefunden – bitte manuell installieren."
+                    KIOSK_BIN="kweb"
                 fi
             elif eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
                 KIOSK_BIN="chromium-browser"
@@ -1046,7 +1046,7 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
     cat > "${KIOSK_SCRIPT}" <<EOF
 #!/usr/bin/env bash
 # kiosk.sh – Kiosk-Browser starten
-# Wartet bis alarm-monitor erreichbar ist, dann startet Chromium im Kiosk-Modus.
+# Wartet bis alarm-monitor erreichbar ist, dann startet der Kiosk-Browser.
 
 KIOSK_URL="${KIOSK_URL}"
 BROWSER="${KIOSK_BIN}"
@@ -1059,6 +1059,15 @@ until curl -fs "\${KIOSK_URL}/health" >/dev/null 2>&1 || [ \$WAITED -ge \$MAX_WA
     WAITED=\$((WAITED+3))
 done
 
+EOF
+
+    # kweb (Raspberry Pi) benötigt keine Chromium-spezifischen Flags
+    if [[ "$IS_RPI" == "true" && "$KIOSK_BIN" == "kweb" ]]; then
+        cat >> "${KIOSK_SCRIPT}" <<EOF
+exec \${BROWSER} -F "\${KIOSK_URL}"
+EOF
+    else
+        cat >> "${KIOSK_SCRIPT}" <<EOF
 # Chromium-Profil vorbereiten (verhindert "abgestürzt"-Dialog)
 PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 mkdir -p "\${PROFILE_DIR}/Default"
@@ -1080,6 +1089,7 @@ exec \${BROWSER} \\
     --user-data-dir="\${PROFILE_DIR}" \\
     "\${KIOSK_URL}"
 EOF
+    fi
     chmod +x "${KIOSK_SCRIPT}"
 
     # Openbox-Autostart
