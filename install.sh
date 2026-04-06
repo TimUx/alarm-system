@@ -43,6 +43,12 @@ sep()     { echo -e "${BOLD}─────────────────�
 [[ $EUID -eq 0 ]] && die "Bitte NICHT als root ausführen. Starte das Skript als normalen Benutzer mit sudo-Rechten."
 command -v sudo >/dev/null 2>&1 || die "sudo ist nicht installiert."
 
+# Wenn stdin kein Terminal ist (z.B. curl | bash), stdin von /dev/tty neu öffnen,
+# damit read-Befehle nicht die Skript-Eingabe konsumieren, sondern interaktiv lesen.
+if [[ ! -t 0 ]]; then
+    exec < /dev/tty || die "Kein interaktives Terminal gefunden. Bitte Skript direkt ausführen: bash install.sh"
+fi
+
 SCRIPT_USER="${USER}"
 INSTALL_DIR="/opt/alarm-system"
 
