@@ -51,6 +51,7 @@ fi
 
 SCRIPT_USER="${USER}"
 INSTALL_DIR="/opt/alarm-system"
+STATE_FILE="${HOME}/.alarm-system-install.conf"
 
 # ---------------------------------------------------------------------------
 # Banner
@@ -122,6 +123,52 @@ yes_no() {
 }
 
 # ---------------------------------------------------------------------------
+# Gespeicherte Eingaben: Hilfsfunktionen
+# ---------------------------------------------------------------------------
+
+# bool_to_yn <value>  → gibt "y" oder "n" zurück (für yes_no-Standardwerte)
+bool_to_yn() { [[ "${1:-false}" == "true" ]] && echo "y" || echo "n"; }
+
+# load_state: Lädt gespeicherte Eingaben aus STATE_FILE als Shell-Variablen
+load_state() {
+    if [[ -f "${STATE_FILE}" ]]; then
+        # shellcheck disable=SC1090
+        source "${STATE_FILE}" || true
+        info "Gespeicherte Konfiguration geladen: ${STATE_FILE}"
+        info "Vorherige Eingaben werden als Standardwerte angezeigt."
+    fi
+}
+
+# save_state: Schreibt alle Eingabe-Variablen in STATE_FILE (chmod 600)
+save_state() {
+    local _vars=(
+        INSTALL_DIR TZ
+        INSTALL_MONITOR INSTALL_MESSENGER INSTALL_MAIL INSTALL_CADDY INSTALL_KIOSK KIOSK_URL
+        ALARM_MONITOR_PORT ALARM_MONITOR_API_KEY ALARM_MONITOR_DISPLAY_DURATION ALARM_MONITOR_DOMAIN
+        ALARM_MESSENGER_PORT ALARM_MESSENGER_ORGANIZATION_NAME ALARM_MESSENGER_API_SECRET_KEY
+        ALARM_MESSENGER_JWT_SECRET ALARM_MESSENGER_SESSION_SECRET ALARM_MESSENGER_SERVER_URL
+        ALARM_MESSENGER_CORS_ORIGINS ALARM_MESSENGER_DOMAIN
+        ALARM_MESSENGER_ENABLE_FCM ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH
+        ALARM_MESSENGER_ENABLE_APNS ALARM_MESSENGER_APNS_KEY_PATH ALARM_MESSENGER_APNS_KEY_ID
+        ALARM_MESSENGER_APNS_TEAM_ID ALARM_MESSENGER_APNS_TOPIC ALARM_MESSENGER_APNS_PRODUCTION
+        MESSENGER_ADMIN_USER MESSENGER_ADMIN_PASSWORD
+        ALARM_MAIL_IMAP_HOST ALARM_MAIL_IMAP_PORT ALARM_MAIL_IMAP_USE_SSL
+        ALARM_MAIL_IMAP_USERNAME ALARM_MAIL_IMAP_PASSWORD
+        ALARM_MAIL_IMAP_MAILBOX ALARM_MAIL_IMAP_SEARCH ALARM_MAIL_POLL_INTERVAL
+    )
+    {
+        echo "# Alarm-System Install-Zustand – gespeichert am $(date '+%d.%m.%Y %H:%M:%S')"
+        echo "# Wird von install.sh als Standardwerte beim nächsten Aufruf verwendet."
+        echo ""
+        for _v in "${_vars[@]}"; do
+            printf '%s=%q\n' "$_v" "${!_v:-}"
+        done
+    } > "${STATE_FILE}"
+    chmod 600 "${STATE_FILE}"
+    ok "Eingaben gespeichert: ${STATE_FILE}"
+}
+
+# ---------------------------------------------------------------------------
 # Architekturen & Paketmanager erkennen
 # ---------------------------------------------------------------------------
 detect_system() {
@@ -176,6 +223,19 @@ detect_system() {
 step "Systemerkennung"
 detect_system
 
+# Standardwerte für erste Ausführung; werden durch gespeicherten Zustand überschrieben.
+INSTALL_MONITOR="${INSTALL_MONITOR:-true}"
+INSTALL_MESSENGER="${INSTALL_MESSENGER:-true}"
+INSTALL_MAIL="${INSTALL_MAIL:-true}"
+INSTALL_CADDY="${INSTALL_CADDY:-false}"
+INSTALL_KIOSK="${INSTALL_KIOSK:-false}"
+KIOSK_URL="${KIOSK_URL:-http://localhost:8000}"
+TZ="${TZ:-Europe/Berlin}"
+ALARM_MESSENGER_ENABLE_FCM="${ALARM_MESSENGER_ENABLE_FCM:-false}"
+ALARM_MESSENGER_ENABLE_APNS="${ALARM_MESSENGER_ENABLE_APNS:-false}"
+ALARM_MESSENGER_APNS_PRODUCTION="${ALARM_MESSENGER_APNS_PRODUCTION:-false}"
+load_state
+
 # ---------------------------------------------------------------------------
 # Schritt 2: Komponentenauswahl
 # ---------------------------------------------------------------------------
@@ -190,14 +250,9 @@ echo ""
 info "alarm-mail benötigt mindestens einen der anderen Dienste als Ziel."
 echo ""
 
-INSTALL_MONITOR=false
-INSTALL_MESSENGER=false
-INSTALL_MAIL=false
-INSTALL_CADDY=false
-
-yes_no "alarm-monitor installieren?" "y" && INSTALL_MONITOR=true || true
-yes_no "alarm-messenger installieren?" "y" && INSTALL_MESSENGER=true || true
-yes_no "alarm-mail installieren?" "y" && INSTALL_MAIL=true || true
+yes_no "alarm-monitor installieren?" "$(bool_to_yn "${INSTALL_MONITOR}")" && INSTALL_MONITOR=true || INSTALL_MONITOR=false
+yes_no "alarm-messenger installieren?" "$(bool_to_yn "${INSTALL_MESSENGER}")" && INSTALL_MESSENGER=true || INSTALL_MESSENGER=false
+yes_no "alarm-mail installieren?" "$(bool_to_yn "${INSTALL_MAIL}")" && INSTALL_MAIL=true || INSTALL_MAIL=false
 
 if [[ "$INSTALL_MONITOR" == "false" && "$INSTALL_MESSENGER" == "false" && "$INSTALL_MAIL" == "false" ]]; then
     die "Mindestens eine Komponente muss ausgewählt werden."
@@ -207,26 +262,25 @@ if [[ "$INSTALL_MAIL" == "true" && "$INSTALL_MONITOR" == "false" && "$INSTALL_ME
     die "alarm-mail benötigt alarm-monitor und/oder alarm-messenger als Ziel."
 fi
 
-yes_no "Caddy Reverse Proxy (HTTPS) konfigurieren?" "n" && INSTALL_CADDY=true || true
+yes_no "Caddy Reverse Proxy (HTTPS) konfigurieren?" "$(bool_to_yn "${INSTALL_CADDY}")" && INSTALL_CADDY=true || INSTALL_CADDY=false
 
 # ---------------------------------------------------------------------------
 # Schritt 3: Kiosk-Modus
 # ---------------------------------------------------------------------------
-INSTALL_KIOSK=false
-KIOSK_URL="http://localhost:8000"
-
 step "Kiosk-Modus (Browser-Vollbildanzeige)"
 echo ""
 info "Für eine dedizierte Anzeige (z.B. Raspberry Pi, Intel NUC) kann ein Kiosk-Browser"
 info "im Vollbildmodus mit minimalen GUI-Ressourcen konfiguriert werden."
 echo ""
-if yes_no "Kiosk-Modus konfigurieren?" "n"; then
+if yes_no "Kiosk-Modus konfigurieren?" "$(bool_to_yn "${INSTALL_KIOSK}")"; then
     INSTALL_KIOSK=true
     if [[ "$INSTALL_MONITOR" == "true" ]]; then
-        prompt_optional KIOSK_URL "URL für Kiosk-Browser" "http://localhost:8000"
+        prompt_optional KIOSK_URL "URL für Kiosk-Browser" "${KIOSK_URL:-http://localhost:8000}"
     else
-        prompt_value KIOSK_URL "URL für Kiosk-Browser" "" false
+        prompt_value KIOSK_URL "URL für Kiosk-Browser" "${KIOSK_URL:-}" false
     fi
+else
+    INSTALL_KIOSK=false
 fi
 
 # ---------------------------------------------------------------------------
@@ -234,7 +288,7 @@ fi
 # ---------------------------------------------------------------------------
 step "Allgemeine Konfiguration"
 
-prompt_optional TZ "Zeitzone (IANA-Format)" "Europe/Berlin"
+prompt_optional TZ "Zeitzone (IANA-Format)" "${TZ:-Europe/Berlin}"
 prompt_value INSTALL_DIR "Installationsverzeichnis" "${INSTALL_DIR}" false
 
 # ---------------------------------------------------------------------------
@@ -246,13 +300,13 @@ if [[ "$INSTALL_MONITOR" == "true" ]]; then
     MONITOR_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
     prompt_value ALARM_MONITOR_API_KEY \
         "API-Schlüssel für alarm-monitor" \
-        "${MONITOR_API_KEY_SUGGESTION}" "true"
+        "${ALARM_MONITOR_API_KEY:-${MONITOR_API_KEY_SUGGESTION}}" "true"
 
-    prompt_optional ALARM_MONITOR_PORT "Port für alarm-monitor Dashboard" "8000"
-    prompt_optional ALARM_MONITOR_DISPLAY_DURATION "Alarm-Anzeigedauer (Minuten)" "30"
+    prompt_optional ALARM_MONITOR_PORT "Port für alarm-monitor Dashboard" "${ALARM_MONITOR_PORT:-8000}"
+    prompt_optional ALARM_MONITOR_DISPLAY_DURATION "Alarm-Anzeigedauer (Minuten)" "${ALARM_MONITOR_DISPLAY_DURATION:-30}"
 
     if [[ "$INSTALL_CADDY" == "true" ]]; then
-        prompt_value ALARM_MONITOR_DOMAIN "Domain für alarm-monitor (z.B. monitor.feuerwehr.example.com)" "" false
+        prompt_value ALARM_MONITOR_DOMAIN "Domain für alarm-monitor (z.B. monitor.feuerwehr.example.com)" "${ALARM_MONITOR_DOMAIN:-}" false
     fi
 fi
 
@@ -268,59 +322,60 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
 
     prompt_value ALARM_MESSENGER_API_SECRET_KEY \
         "API-Schlüssel für alarm-messenger" \
-        "${MESSENGER_API_KEY_SUGGESTION}" "true"
+        "${ALARM_MESSENGER_API_SECRET_KEY:-${MESSENGER_API_KEY_SUGGESTION}}" "true"
 
     prompt_value ALARM_MESSENGER_JWT_SECRET \
         "JWT-Secret für Admin-Interface" \
-        "${JWT_SECRET_SUGGESTION}" "true"
+        "${ALARM_MESSENGER_JWT_SECRET:-${JWT_SECRET_SUGGESTION}}" "true"
 
     prompt_value ALARM_MESSENGER_SESSION_SECRET \
         "Session-Secret für Admin-Session-Verwaltung" \
-        "${SESSION_SECRET_SUGGESTION}" "true"
+        "${ALARM_MESSENGER_SESSION_SECRET:-${SESSION_SECRET_SUGGESTION}}" "true"
 
-    prompt_optional ALARM_MESSENGER_PORT "Port für alarm-messenger" "3000"
-    prompt_value ALARM_MESSENGER_ORGANIZATION_NAME "Name der Organisation / Feuerwehr" "Feuerwehr Musterstadt" false
+    prompt_optional ALARM_MESSENGER_PORT "Port für alarm-messenger" "${ALARM_MESSENGER_PORT:-3000}"
+    prompt_value ALARM_MESSENGER_ORGANIZATION_NAME "Name der Organisation / Feuerwehr" "${ALARM_MESSENGER_ORGANIZATION_NAME:-Feuerwehr Musterstadt}" false
 
     # Server-URL für QR-Code-Generierung
     SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")"
     MESSENGER_URL_SUGGESTION="http://${SERVER_IP}:${ALARM_MESSENGER_PORT:-3000}"
     prompt_value ALARM_MESSENGER_SERVER_URL \
         "Externe Server-URL für QR-Code (von außen erreichbar)" \
-        "${MESSENGER_URL_SUGGESTION}" false
+        "${ALARM_MESSENGER_SERVER_URL:-${MESSENGER_URL_SUGGESTION}}" false
 
-    prompt_optional ALARM_MESSENGER_CORS_ORIGINS "CORS-Origins (kommagetrennt, * = alle)" "*"
+    prompt_optional ALARM_MESSENGER_CORS_ORIGINS "CORS-Origins (kommagetrennt, * = alle)" "${ALARM_MESSENGER_CORS_ORIGINS:-*}"
 
     if [[ "$INSTALL_CADDY" == "true" ]]; then
-        prompt_value ALARM_MESSENGER_DOMAIN "Domain für alarm-messenger (z.B. messenger.feuerwehr.example.com)" "" false
+        prompt_value ALARM_MESSENGER_DOMAIN "Domain für alarm-messenger (z.B. messenger.feuerwehr.example.com)" "${ALARM_MESSENGER_DOMAIN:-}" false
     fi
 
     echo ""
     info "Push-Benachrichtigungen (optional – für bessere Hintergrundlieferung auf Mobilgeräten)"
-    ALARM_MESSENGER_ENABLE_FCM=false
-    ALARM_MESSENGER_ENABLE_APNS=false
 
-    if yes_no "Firebase Cloud Messaging (FCM) für Android aktivieren?" "n"; then
+    if yes_no "Firebase Cloud Messaging (FCM) für Android aktivieren?" "$(bool_to_yn "${ALARM_MESSENGER_ENABLE_FCM}")"; then
         ALARM_MESSENGER_ENABLE_FCM=true
-        prompt_value ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH "Pfad zur Firebase Service-Account JSON-Datei" "" false
+        prompt_value ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH "Pfad zur Firebase Service-Account JSON-Datei" "${ALARM_MESSENGER_FCM_SERVICE_ACCOUNT_PATH:-}" false
+    else
+        ALARM_MESSENGER_ENABLE_FCM=false
     fi
 
-    if yes_no "Apple Push Notification Service (APNs) für iOS aktivieren?" "n"; then
+    if yes_no "Apple Push Notification Service (APNs) für iOS aktivieren?" "$(bool_to_yn "${ALARM_MESSENGER_ENABLE_APNS}")"; then
         ALARM_MESSENGER_ENABLE_APNS=true
-        prompt_value ALARM_MESSENGER_APNS_KEY_PATH "Pfad zur APNs .p8 Key-Datei" "" false
-        prompt_value ALARM_MESSENGER_APNS_KEY_ID "APNs Key-ID (10 Zeichen)" "" false
-        prompt_value ALARM_MESSENGER_APNS_TEAM_ID "Apple Team-ID (10 Zeichen)" "" false
-        prompt_value ALARM_MESSENGER_APNS_TOPIC "APNs Topic (Bundle-ID, z.B. com.alarmmessenger)" "" false
-        ALARM_MESSENGER_APNS_PRODUCTION=false
-        yes_no "APNs Produktionsumgebung verwenden? (nein = Sandbox/Test)" "n" \
-            && ALARM_MESSENGER_APNS_PRODUCTION=true || true
+        prompt_value ALARM_MESSENGER_APNS_KEY_PATH "Pfad zur APNs .p8 Key-Datei" "${ALARM_MESSENGER_APNS_KEY_PATH:-}" false
+        prompt_value ALARM_MESSENGER_APNS_KEY_ID "APNs Key-ID (10 Zeichen)" "${ALARM_MESSENGER_APNS_KEY_ID:-}" false
+        prompt_value ALARM_MESSENGER_APNS_TEAM_ID "Apple Team-ID (10 Zeichen)" "${ALARM_MESSENGER_APNS_TEAM_ID:-}" false
+        prompt_value ALARM_MESSENGER_APNS_TOPIC "APNs Topic (Bundle-ID, z.B. com.alarmmessenger)" "${ALARM_MESSENGER_APNS_TOPIC:-}" false
+        yes_no "APNs Produktionsumgebung verwenden? (nein = Sandbox/Test)" "$(bool_to_yn "${ALARM_MESSENGER_APNS_PRODUCTION}")" \
+            && ALARM_MESSENGER_APNS_PRODUCTION=true || ALARM_MESSENGER_APNS_PRODUCTION=false
+    else
+        ALARM_MESSENGER_ENABLE_APNS=false
     fi
 
     # Admin-Benutzer für Messenger
     echo ""
     step "alarm-messenger Admin-Benutzer"
     info "Dieser Benutzer wird nach dem Start automatisch angelegt (nur beim ersten Start)."
-    prompt_value MESSENGER_ADMIN_USER "Admin-Benutzername" "admin" false
-    prompt_value MESSENGER_ADMIN_PASSWORD "Admin-Passwort" "" "true"
+    prompt_value MESSENGER_ADMIN_USER "Admin-Benutzername" "${MESSENGER_ADMIN_USER:-admin}" false
+    prompt_value MESSENGER_ADMIN_PASSWORD "Admin-Passwort" "${MESSENGER_ADMIN_PASSWORD:-}" "true"
 fi
 
 # ---------------------------------------------------------------------------
@@ -329,19 +384,22 @@ fi
 if [[ "$INSTALL_MAIL" == "true" ]]; then
     step "alarm-mail Konfiguration (IMAP)"
 
-    prompt_value ALARM_MAIL_IMAP_HOST "IMAP-Server (z.B. imap.gmail.com)" "" false
-    prompt_optional ALARM_MAIL_IMAP_PORT "IMAP-Port" "993"
-    prompt_optional ALARM_MAIL_IMAP_USE_SSL "IMAP SSL verwenden (true/false)" "true"
-    prompt_value ALARM_MAIL_IMAP_USERNAME "IMAP-Benutzername / E-Mail-Adresse" "" false
-    prompt_value ALARM_MAIL_IMAP_PASSWORD "IMAP-Passwort" "" "true"
-    prompt_optional ALARM_MAIL_IMAP_MAILBOX "IMAP-Postfach / Ordner" "INBOX"
-    prompt_optional ALARM_MAIL_IMAP_SEARCH "IMAP-Suchkriterium" "UNSEEN"
-    prompt_optional ALARM_MAIL_POLL_INTERVAL "Abfrageintervall in Sekunden" "60"
+    prompt_value ALARM_MAIL_IMAP_HOST "IMAP-Server (z.B. imap.gmail.com)" "${ALARM_MAIL_IMAP_HOST:-}" false
+    prompt_optional ALARM_MAIL_IMAP_PORT "IMAP-Port" "${ALARM_MAIL_IMAP_PORT:-993}"
+    prompt_optional ALARM_MAIL_IMAP_USE_SSL "IMAP SSL verwenden (true/false)" "${ALARM_MAIL_IMAP_USE_SSL:-true}"
+    prompt_value ALARM_MAIL_IMAP_USERNAME "IMAP-Benutzername / E-Mail-Adresse" "${ALARM_MAIL_IMAP_USERNAME:-}" false
+    prompt_value ALARM_MAIL_IMAP_PASSWORD "IMAP-Passwort" "${ALARM_MAIL_IMAP_PASSWORD:-}" "true"
+    prompt_optional ALARM_MAIL_IMAP_MAILBOX "IMAP-Postfach / Ordner" "${ALARM_MAIL_IMAP_MAILBOX:-INBOX}"
+    prompt_optional ALARM_MAIL_IMAP_SEARCH "IMAP-Suchkriterium" "${ALARM_MAIL_IMAP_SEARCH:-UNSEEN}"
+    prompt_optional ALARM_MAIL_POLL_INTERVAL "Abfrageintervall in Sekunden" "${ALARM_MAIL_POLL_INTERVAL:-60}"
 fi
 
 # ---------------------------------------------------------------------------
 # Zusammenfassung vor der Installation
 # ---------------------------------------------------------------------------
+# Eingaben speichern (auch wenn die Installation abgebrochen wird)
+save_state
+
 echo ""
 sep
 echo -e "${BOLD}  Installationsübersicht${NC}"
