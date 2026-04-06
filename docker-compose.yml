@@ -61,6 +61,7 @@ services:
       alarm-messenger:
         condition: service_healthy
     healthcheck:
+      # curl is installed in the alarm-mail image (see Dockerfile)
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
