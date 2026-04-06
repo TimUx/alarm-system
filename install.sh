@@ -238,7 +238,7 @@ INSTALL_DIR="${INSTALL_DIR_INPUT}"
 if [[ "$INSTALL_MONITOR" == "true" ]]; then
     step "alarm-monitor Konfiguration"
 
-    MONITOR_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -dc 'a-f0-9' | head -c 64)"
+    MONITOR_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
     prompt_value ALARM_MONITOR_API_KEY \
         "API-Schlüssel für alarm-monitor" \
         "${MONITOR_API_KEY_SUGGESTION}" "true"
@@ -257,8 +257,8 @@ fi
 if [[ "$INSTALL_MESSENGER" == "true" ]]; then
     step "alarm-messenger Konfiguration"
 
-    MESSENGER_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -dc 'a-f0-9' | head -c 64)"
-    JWT_SECRET_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | base64 | tr -dc 'a-f0-9' | head -c 64)"
+    MESSENGER_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+    JWT_SECRET_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
 
     prompt_value ALARM_MESSENGER_API_SECRET_KEY \
         "API-Schlüssel für alarm-messenger" \
@@ -665,9 +665,9 @@ EOF
 
     cat >> "${COMPOSE_FILE}" <<'EOF'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
+      test: ["CMD", "pgrep", "-f", "alarm-mail"]
+      interval: 60s
+      timeout: 10s
       start_period: 30s
       retries: 3
 EOF
@@ -904,17 +904,17 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
 KIOSK_URL="${KIOSK_URL}"
 BROWSER="${KIOSK_BIN}"
 MAX_WAIT=120   # Sekunden
-WAIT=0
+WAITED=0
 
 echo "Warte auf \${KIOSK_URL} …"
-until curl -fs "\${KIOSK_URL}/health" >/dev/null 2>&1 || [ \$WAIT -ge \$MAX_WAIT ]; do
+until curl -fs "\${KIOSK_URL}/health" >/dev/null 2>&1 || [ \$WAITED -ge \$MAX_WAIT ]; do
     sleep 3
-    WAIT=\$((WAIT+3))
+    WAITED=\$((WAITED+3))
 done
 
 # Chromium-Profil vorbereiten (verhindert "abgestürzt"-Dialog)
 PROFILE_DIR="/tmp/kiosk-profile"
-mkdir -p "\${PROFILE_DIR}"
+mkdir -p "\${PROFILE_DIR}/Default"
 cat > "\${PROFILE_DIR}/Default/Preferences" <<'PREF' 2>/dev/null || true
 {"profile":{"exit_type":"Normal","exited_cleanly":true}}
 PREF
@@ -982,28 +982,17 @@ fi
 # Schritt H: Docker Images ziehen
 # ---------------------------------------------------------------------------
 step "Docker Images herunterladen"
-cd "${INSTALL_DIR}"
-newgrp docker <<DOCKER_CMD
-cd "${INSTALL_DIR}"
-docker compose pull
-DOCKER_CMD
+sg docker -c "cd '${INSTALL_DIR}' && docker compose pull"
 ok "Images heruntergeladen."
 
 # ---------------------------------------------------------------------------
 # Schritt I: Dienste starten
 # ---------------------------------------------------------------------------
 step "Dienste starten"
-cd "${INSTALL_DIR}"
 if [[ "$INSTALL_CADDY" == "true" ]]; then
-    newgrp docker <<DOCKER_CMD
-cd "${INSTALL_DIR}"
-docker compose --profile with-caddy up -d
-DOCKER_CMD
+    sg docker -c "cd '${INSTALL_DIR}' && docker compose --profile with-caddy up -d"
 else
-    newgrp docker <<DOCKER_CMD
-cd "${INSTALL_DIR}"
-docker compose up -d
-DOCKER_CMD
+    sg docker -c "cd '${INSTALL_DIR}' && docker compose up -d"
 fi
 ok "Dienste gestartet."
 
