@@ -19,7 +19,7 @@
     
     # Logging
     log {
-        output file /var/log/caddy/monitor-access.log
+        output stderr
         format json
     }
 }
@@ -52,7 +52,7 @@
     
     # Logging
     log {
-        output file /var/log/caddy/messenger-access.log
+        output stderr
         format json
     }
 }

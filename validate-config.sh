@@ -120,6 +120,17 @@ if [[ "$ALARM_MESSENGER_SERVER_URL" == *"localhost"* ]]; then
 fi
 
 echo ""
+echo "=== CORS Configuration ==="
+if [ "${ALARM_MESSENGER_CORS_ORIGINS:-*}" = "*" ]; then
+    echo -e "${YELLOW}WARNING: ALARM_MESSENGER_CORS_ORIGINS is set to '*' (allow all origins)${NC}"
+    echo "  In production, restrict this to your specific domain(s)"
+    echo "  Example: ALARM_MESSENGER_CORS_ORIGINS=https://app.example.com"
+    WARNINGS=$((WARNINGS + 1))
+else
+    echo -e "${GREEN}✓ CORS origins are restricted: ${ALARM_MESSENGER_CORS_ORIGINS}${NC}"
+fi
+
+echo ""
 echo "=== Docker Environment Check ==="
 
 # Check if Docker is installed

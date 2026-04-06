@@ -61,7 +61,8 @@ services:
       alarm-messenger:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # alarm-mail is an IMAP poller with no HTTP server; check for a live process instead
+      test: ["CMD", "pgrep", "-f", "alarm_mail"]
       interval: 30s
       timeout: 5s
       start_period: 30s
@@ -81,7 +82,7 @@ services:
       - ALARM_DASHBOARD_API_KEY=${ALARM_MONITOR_API_KEY}
       
       # Password for the settings page (required to save settings via web UI)
-      - ALARM_DASHBOARD_SETTINGS_PASSWORD=${ALARM_MONITOR_SETTINGS_PASSWORD}
+      - ALARM_DASHBOARD_SETTINGS_PASSWORD=${ALARM_MONITOR_SETTINGS_PASSWORD:-CHANGE_ME_SETTINGS_PASSWORD}
       
       # Messenger Integration (for participant responses)
       - ALARM_DASHBOARD_MESSENGER_SERVER_URL=http://alarm-messenger:3000
@@ -128,8 +129,8 @@ services:
       - PORT=3000
       - DATABASE_PATH=/app/data/alarm-messenger.db
       
-      # Server URL for QR code generation (must be externally accessible URL)
-      - SERVER_URL=${ALARM_MESSENGER_SERVER_URL:-http://localhost:3000}
+      # Required: must be an externally reachable URL (not localhost)
+      - SERVER_URL=${ALARM_MESSENGER_SERVER_URL}
       
       # Organization/Fire Department Name
       - ORGANIZATION_NAME=${ALARM_MESSENGER_ORGANIZATION_NAME:-Feuerwehr Musterstadt}
