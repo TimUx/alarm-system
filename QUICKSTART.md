@@ -136,6 +136,10 @@ ALARM_MONITOR_API_KEY=<generierter-schlüssel-1>
 ALARM_MESSENGER_API_SECRET_KEY=<generierter-schlüssel-2>
 ALARM_MESSENGER_JWT_SECRET=<generierter-schlüssel-3>
 
+# Passwort für die Einstellungsseite des Monitors (PFLICHT)
+# Führen Sie aus: openssl rand -hex 16
+ALARM_MONITOR_SETTINGS_PASSWORD=<generiertes-passwort>
+
 # Server-URL für Messenger (PFLICHT)
 # Ersetzen Sie mit Ihrer Server-IP oder Domain
 ALARM_MESSENGER_SERVER_URL=http://192.168.1.100:3000
@@ -144,10 +148,11 @@ ALARM_MESSENGER_SERVER_URL=http://192.168.1.100:3000
 **API-Schlüssel generieren:**
 
 ```bash
-# Drei verschiedene Schlüssel generieren
+# Vier verschiedene Schlüssel/Passwörter generieren
 openssl rand -hex 32  # Für ALARM_MONITOR_API_KEY
 openssl rand -hex 32  # Für ALARM_MESSENGER_API_SECRET_KEY
 openssl rand -hex 32  # Für ALARM_MESSENGER_JWT_SECRET
+openssl rand -hex 16  # Für ALARM_MONITOR_SETTINGS_PASSWORD
 ```
 
 ### Schritt 4: System starten
