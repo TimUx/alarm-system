@@ -188,6 +188,12 @@ detect_system() {
         OS_ID="${ID:-unknown}"
     fi
 
+    # Raspberry Pi erkennen
+    IS_RPI=false
+    if grep -qi "raspberry pi" /proc/cpuinfo 2>/dev/null || [[ "$OS_ID" == "raspbian" ]]; then
+        IS_RPI=true
+    fi
+
     # Paketmanager auswählen
     if command -v apt-get >/dev/null 2>&1; then
         PKG_MGR="apt"
@@ -997,7 +1003,17 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
         apt)
             eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool"
             # Chromium: Name unterscheidet sich je nach Distro/Arch
-            if eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
+            # Auf Raspberry Pi wird kweb explizit NICHT verwendet – stattdessen
+            # direkt chromium installieren.
+            if [[ "$IS_RPI" == "true" ]]; then
+                info "Raspberry Pi erkannt: kweb wird nicht verwendet, installiere chromium."
+                if eval "${PKG_INSTALL} chromium" 2>/dev/null; then
+                    KIOSK_BIN="chromium"
+                else
+                    warn "Kein Chromium-Paket gefunden – bitte manuell installieren."
+                    KIOSK_BIN="chromium"
+                fi
+            elif eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
                 KIOSK_BIN="chromium-browser"
             elif eval "${PKG_INSTALL} chromium" 2>/dev/null; then
                 KIOSK_BIN="chromium"
