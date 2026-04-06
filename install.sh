@@ -71,14 +71,14 @@ prompt_value() {
     local _prompt="$2"
     local _default="${3:-}"
     local _secret="${4:-false}"
-    local _value
+    local _value=""
 
     while true; do
         if [[ "$_secret" == "true" ]]; then
-            read -rsp "  ${_prompt}${_default:+ [Vorschlag: ***]}: " _value
+            read -rsp "  ${_prompt}${_default:+ [Vorschlag: ***]}: " _value || true
             echo
         else
-            read -rp "  ${_prompt}${_default:+ [Standard: ${_default}]}: " _value
+            read -rp "  ${_prompt}${_default:+ [Standard: ${_default}]}: " _value || true
         fi
         _value="${_value:-${_default}}"
         if [[ -n "$_value" ]]; then
@@ -94,8 +94,8 @@ prompt_optional() {
     local _var="$1"
     local _prompt="$2"
     local _default="${3:-}"
-    local _value
-    read -rp "  ${_prompt}${_default:+ [Standard: ${_default}]}: " _value
+    local _value=""
+    read -rp "  ${_prompt}${_default:+ [Standard: ${_default}]}: " _value || true
     printf -v "$_var" '%s' "${_value:-${_default}}"
 }
 
@@ -229,8 +229,7 @@ fi
 step "Allgemeine Konfiguration"
 
 prompt_optional TZ "Zeitzone (IANA-Format)" "Europe/Berlin"
-prompt_value INSTALL_DIR_INPUT "Installationsverzeichnis" "${INSTALL_DIR}" false
-INSTALL_DIR="${INSTALL_DIR_INPUT}"
+prompt_value INSTALL_DIR "Installationsverzeichnis" "${INSTALL_DIR}" false
 
 # ---------------------------------------------------------------------------
 # Schritt 5: alarm-monitor Konfiguration
