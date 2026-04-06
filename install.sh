@@ -1060,7 +1060,20 @@ cat > "\${PROFILE_DIR}/Default/Preferences" <<'PREF' 2>/dev/null || true
 {"profile":{"exit_type":"Normal","exited_cleanly":true}}
 PREF
 
-exec \${BROWSER} \\
+# Cache beim Start leeren (stellt sicher, dass aktuelle App-Versionen geladen werden)
+clear_browser_cache() {
+    rm -rf "\${PROFILE_DIR}/Default/Cache" \
+           "\${PROFILE_DIR}/Default/Code Cache" \
+           "\${PROFILE_DIR}/Default/Service Worker" \
+           "\${PROFILE_DIR}/Default/GPUCache" \
+           2>/dev/null || true
+}
+clear_browser_cache
+
+# Cache auch beim Beenden leeren
+trap 'clear_browser_cache' EXIT
+
+\${BROWSER} \\
     --kiosk \\
     --noerrdialogs \\
     --disable-infobars \\
