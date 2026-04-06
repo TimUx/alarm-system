@@ -1071,6 +1071,7 @@ clear_browser_cache() {
 clear_browser_cache
 
 # Cache auch beim Beenden leeren
+# Hinweis: kein 'exec', damit der EXIT-Trap nach Browser-Ende greift
 trap 'clear_browser_cache' EXIT
 
 \${BROWSER} \\
