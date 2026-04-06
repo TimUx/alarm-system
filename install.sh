@@ -238,7 +238,7 @@ INSTALL_DIR="${INSTALL_DIR_INPUT}"
 if [[ "$INSTALL_MONITOR" == "true" ]]; then
     step "alarm-monitor Konfiguration"
 
-    MONITOR_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+    MONITOR_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
     prompt_value ALARM_MONITOR_API_KEY \
         "API-Schlüssel für alarm-monitor" \
         "${MONITOR_API_KEY_SUGGESTION}" "true"
@@ -257,8 +257,8 @@ fi
 if [[ "$INSTALL_MESSENGER" == "true" ]]; then
     step "alarm-messenger Konfiguration"
 
-    MESSENGER_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
-    JWT_SECRET_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+    MESSENGER_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
+    JWT_SECRET_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
 
     prompt_value ALARM_MESSENGER_API_SECRET_KEY \
         "API-Schlüssel für alarm-messenger" \
@@ -802,7 +802,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 BACKUP_DIR="$(dirname "$0")/backup"
 mkdir -p "${BACKUP_DIR}"
-DATE="$(date +%Y%m%d_%H%M%S)"
+DATE="$(date -u +%Y%m%d_%H%M%S_UTC)"
 
 backup_volume() {
     local VOL="$1"
@@ -913,8 +913,9 @@ until curl -fs "\${KIOSK_URL}/health" >/dev/null 2>&1 || [ \$WAITED -ge \$MAX_WA
 done
 
 # Chromium-Profil vorbereiten (verhindert "abgestürzt"-Dialog)
-PROFILE_DIR="/tmp/kiosk-profile"
+PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 mkdir -p "\${PROFILE_DIR}/Default"
+chmod 700 "\${PROFILE_DIR}"
 cat > "\${PROFILE_DIR}/Default/Preferences" <<'PREF' 2>/dev/null || true
 {"profile":{"exit_type":"Normal","exited_cleanly":true}}
 PREF
