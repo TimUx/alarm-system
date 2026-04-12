@@ -1014,8 +1014,8 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
             fi
             ;;
         dnf|yum)
-            eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium google-noto-emoji-color-fonts" 2>/dev/null \
-                || eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium"
+            eval "${PKG_INSTALL} google-noto-emoji-color-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium-browser"
             command -v chromium >/dev/null 2>&1 && KIOSK_BIN="chromium"
             ;;
@@ -1024,13 +1024,13 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
             KIOSK_BIN="chromium"
             ;;
         zypper)
-            eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium noto-coloremoji-fonts" 2>/dev/null \
-                || eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} noto-coloremoji-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium"
             ;;
         apk)
-            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium font-noto-emoji" 2>/dev/null \
-                || eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} font-noto-emoji" 2>/dev/null || true
             KIOSK_BIN="chromium-browser"
             ;;
     esac
