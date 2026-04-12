@@ -1002,7 +1002,7 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
     # Notwendige Pakete für X / Kiosk installieren
     case "$PKG_MGR" in
         apt)
-            eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool"
+            eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool fonts-noto-color-emoji"
             # Chromium: Name unterscheidet sich je nach Distro/Arch
             if eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
                 KIOSK_BIN="chromium-browser"
@@ -1014,20 +1014,23 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
             fi
             ;;
         dnf|yum)
-            eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium google-noto-emoji-color-fonts" 2>/dev/null \
+                || eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium"
             KIOSK_BIN="chromium-browser"
             command -v chromium >/dev/null 2>&1 && KIOSK_BIN="chromium"
             ;;
         pacman)
-            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium noto-fonts-emoji"
             KIOSK_BIN="chromium"
             ;;
         zypper)
-            eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium noto-coloremoji-fonts" 2>/dev/null \
+                || eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium"
             KIOSK_BIN="chromium"
             ;;
         apk)
-            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium font-noto-emoji" 2>/dev/null \
+                || eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
             KIOSK_BIN="chromium-browser"
             ;;
     esac
@@ -1058,7 +1061,7 @@ PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 mkdir -p "\${PROFILE_DIR}/Default"
 chmod 700 "\${PROFILE_DIR}"
 cat > "\${PROFILE_DIR}/Default/Preferences" <<'PREF' 2>/dev/null || true
-{"profile":{"exit_type":"Normal","exited_cleanly":true}}
+{"profile":{"exit_type":"Normal","exited_cleanly":true},"translate":{"enabled":false},"translate_blocked_languages":["de"]}
 PREF
 
 # Cache beim Start leeren (stellt sicher, dass aktuelle App-Versionen geladen werden)
@@ -1081,6 +1084,7 @@ trap 'clear_browser_cache' EXIT
     --disable-infobars \\
     --disable-translate \\
     --disable-features=TranslateUI \\
+    --lang=de \\
     --disable-session-crashed-bubble \\
     --disable-restore-session-state \\
     --disable-component-update \\
