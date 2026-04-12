@@ -1203,7 +1203,10 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
     # Notwendige Pakete für X / Kiosk installieren
     case "$PKG_MGR" in
         apt)
-            eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool fonts-noto-color-emoji"
+            eval "${PKG_INSTALL} xorg xinit openbox unclutter xdotool"
+            # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
+            eval "${PKG_INSTALL} fonts-noto-color-emoji fonts-noto-core" 2>/dev/null || \
+                eval "${PKG_INSTALL} fonts-noto-color-emoji" 2>/dev/null || true
             # Chromium: Name unterscheidet sich je nach Distro/Arch
             if eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
                 KIOSK_BIN="chromium-browser"
@@ -1216,25 +1219,36 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
             ;;
         dnf|yum)
             eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium"
-            eval "${PKG_INSTALL} google-noto-emoji-color-fonts" 2>/dev/null || true
+            # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
+            eval "${PKG_INSTALL} google-noto-emoji-color-fonts google-noto-emoji-fonts" 2>/dev/null || \
+                eval "${PKG_INSTALL} google-noto-emoji-color-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium-browser"
             command -v chromium >/dev/null 2>&1 && KIOSK_BIN="chromium"
             ;;
         pacman)
-            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium noto-fonts-emoji"
+            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
+            eval "${PKG_INSTALL} noto-fonts-emoji noto-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium"
             ;;
         zypper)
             eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium"
-            eval "${PKG_INSTALL} noto-coloremoji-fonts" 2>/dev/null || true
+            # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
+            eval "${PKG_INSTALL} google-noto-coloremoji-fonts google-noto-fonts" 2>/dev/null || \
+                eval "${PKG_INSTALL} google-noto-coloremoji-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium"
             ;;
         apk)
             eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
-            eval "${PKG_INSTALL} font-noto-emoji" 2>/dev/null || true
+            # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
+            eval "${PKG_INSTALL} font-noto-emoji font-noto" 2>/dev/null || \
+                eval "${PKG_INSTALL} font-noto-emoji" 2>/dev/null || true
             KIOSK_BIN="chromium-browser"
             ;;
     esac
+
+    # Schriftarten-Cache aktualisieren (damit neue Fonts sofort erkannt werden)
+    command -v fc-cache >/dev/null 2>&1 && fc-cache -f 2>/dev/null || true
 
     # Kiosk-Startskript
     KIOSK_SCRIPT="${INSTALL_DIR}/kiosk.sh"
