@@ -1635,20 +1635,26 @@ if [[ "$IS_RPI" == "true" ]]; then
 [Plymouth Theme]
 Name=Alarm-System
 Description=Alarm-System Ladebildschirm
-ModuleName=text
+ModuleName=script
 
-[text]
-Title=Alarm-System lädt...
-SubTitle=Bitte warten...
+[script]
+ImageDir=/usr/share/plymouth/themes/alarm-system
+ScriptFile=/usr/share/plymouth/themes/alarm-system/alarm-system.script
 PLYM
 
         sudo tee /usr/share/plymouth/themes/alarm-system/alarm-system.script > /dev/null <<'PLYMSCRIPT'
 Window.SetBackgroundTopColor(0.8, 0.1, 0.1);
 Window.SetBackgroundBottomColor(0.5, 0.0, 0.0);
-message_sprite = Sprite();
-message_sprite.SetPosition(Window.GetWidth()/2-200, Window.GetHeight()/2-20, 10000);
-my_image = Image.Text("Alarm-System lädt...", 1.0, 1.0, 1.0);
-message_sprite.SetImage(my_image);
+
+title_image = Image.Text("Alarm-System lädt...", 1.0, 1.0, 1.0);
+title_sprite = Sprite();
+title_sprite.SetImage(title_image);
+title_sprite.SetPosition(Window.GetWidth()/2 - title_image.GetWidth()/2, Window.GetHeight()/2 - 30, 10000);
+
+subtitle_image = Image.Text("Bitte warten...", 0.8, 0.8, 0.8);
+subtitle_sprite = Sprite();
+subtitle_sprite.SetImage(subtitle_image);
+subtitle_sprite.SetPosition(Window.GetWidth()/2 - subtitle_image.GetWidth()/2, Window.GetHeight()/2 + 10, 10000);
 PLYMSCRIPT
 
         sudo update-alternatives --install \
