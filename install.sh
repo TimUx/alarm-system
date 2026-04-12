@@ -159,6 +159,7 @@ save_state() {
         ALARM_MAIL_IMAP_USERNAME ALARM_MAIL_IMAP_PASSWORD
         ALARM_MAIL_IMAP_MAILBOX ALARM_MAIL_IMAP_SEARCH ALARM_MAIL_POLL_INTERVAL
         ALARM_MAIL_HTTP_TIMEOUT ALARM_MAIL_LOG_LEVEL ALARM_MAIL_DEDUP_TTL ALARM_MAIL_DEDUP_DB
+        ALARM_MAIL_TARGET_COUNT
     )
     {
         echo "# Alarm-System Install-Zustand – gespeichert am $(date '+%d.%m.%Y %H:%M:%S')"
@@ -166,6 +167,12 @@ save_state() {
         echo ""
         for _v in "${_vars[@]}"; do
             printf '%s=%q\n' "$_v" "${!_v:-}"
+        done
+        for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+            for _suffix in TYPE URL API_KEY GROUPS; do
+                _v="ALARM_MAIL_TARGET_${_i}_${_suffix}"
+                printf '%s=%q\n' "$_v" "${!_v:-}"
+            done
         done
     } > "${STATE_FILE}"
     chmod 600 "${STATE_FILE}"
@@ -258,6 +265,7 @@ ALARM_MAIL_HTTP_TIMEOUT="${ALARM_MAIL_HTTP_TIMEOUT:-}"
 ALARM_MAIL_LOG_LEVEL="${ALARM_MAIL_LOG_LEVEL:-}"
 ALARM_MAIL_DEDUP_TTL="${ALARM_MAIL_DEDUP_TTL:-}"
 ALARM_MAIL_DEDUP_DB="${ALARM_MAIL_DEDUP_DB:-}"
+ALARM_MAIL_TARGET_COUNT="${ALARM_MAIL_TARGET_COUNT:-0}"
 load_state
 
 # ---------------------------------------------------------------------------
@@ -271,7 +279,7 @@ echo -e "    ${CYAN}2)${NC} alarm-messenger – Push-Benachrichtigungen (Mobile 
 echo -e "    ${CYAN}3)${NC} alarm-mail      – IMAP-E-Mail-Parser (schickt Alarme weiter)"
 echo -e "    ${CYAN}4)${NC} Caddy           – Reverse Proxy mit automatischem HTTPS (optional)"
 echo ""
-info "alarm-mail benötigt mindestens einen der anderen Dienste als Ziel."
+info "alarm-mail benötigt mindestens ein Ziel (lokal installierter Dienst oder externer Endpunkt)."
 echo ""
 
 yes_no "alarm-monitor installieren?" "$(bool_to_yn "${INSTALL_MONITOR}")" && INSTALL_MONITOR=true || INSTALL_MONITOR=false
@@ -283,7 +291,7 @@ if [[ "$INSTALL_MONITOR" == "false" && "$INSTALL_MESSENGER" == "false" && "$INST
 fi
 
 if [[ "$INSTALL_MAIL" == "true" && "$INSTALL_MONITOR" == "false" && "$INSTALL_MESSENGER" == "false" ]]; then
-    die "alarm-mail benötigt alarm-monitor und/oder alarm-messenger als Ziel."
+    info "Keine lokalen Ziel-Dienste gewählt. Du wirst in Schritt 7 externe Ziele konfigurieren."
 fi
 
 yes_no "Caddy Reverse Proxy (HTTPS) konfigurieren?" "$(bool_to_yn "${INSTALL_CADDY}")" && INSTALL_CADDY=true || INSTALL_CADDY=false
@@ -435,6 +443,67 @@ if [[ "$INSTALL_MAIL" == "true" ]]; then
     prompt_optional ALARM_MAIL_LOG_LEVEL "Log-Level (DEBUG/INFO/WARNING/ERROR, optional, Standard: INFO)" "${ALARM_MAIL_LOG_LEVEL:-}"
     prompt_optional ALARM_MAIL_DEDUP_TTL "Deduplizierungs-TTL in Sekunden (optional, Standard: 300)" "${ALARM_MAIL_DEDUP_TTL:-}"
     prompt_optional ALARM_MAIL_DEDUP_DB "Pfad zur SQLite-Deduplizierungs-DB (optional)" "${ALARM_MAIL_DEDUP_DB:-}"
+
+    # --- Ziel-Konfiguration (Multitarget) ---
+    echo ""
+    step "alarm-mail Ziele konfigurieren"
+    info "alarm-mail kann Alarme an mehrere Ziele (alarm-monitor / alarm-messenger) weiterleiten."
+    info "Jedes Ziel kann optional auf bestimmte Alarmgruppen eingeschränkt werden."
+    echo ""
+
+    # Bei Erstkonfiguration: lokal installierte Dienste als Ziele vorbelegen
+    if [[ "${ALARM_MAIL_TARGET_COUNT:-0}" -eq 0 ]]; then
+        _t=0
+        if [[ "$INSTALL_MONITOR" == "true" ]]; then
+            _t=$((_t + 1))
+            printf -v "ALARM_MAIL_TARGET_${_t}_TYPE"    '%s' "alarm-monitor"
+            printf -v "ALARM_MAIL_TARGET_${_t}_URL"     '%s' "http://alarm-monitor:8000"
+            printf -v "ALARM_MAIL_TARGET_${_t}_API_KEY" '%s' "${ALARM_MONITOR_API_KEY:-}"
+            printf -v "ALARM_MAIL_TARGET_${_t}_GROUPS"  '%s' ""
+            info "Ziel ${_t} vorbelegt: alarm-monitor → http://alarm-monitor:8000"
+            _gvar="ALARM_MAIL_TARGET_${_t}_GROUPS"
+            prompt_optional "$_gvar" "Alarmgruppen-Filter für Ziel ${_t} (kommagetrennt, leer = alle)" "${!_gvar:-}"
+        fi
+        if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+            _t=$((_t + 1))
+            printf -v "ALARM_MAIL_TARGET_${_t}_TYPE"    '%s' "alarm-messenger"
+            printf -v "ALARM_MAIL_TARGET_${_t}_URL"     '%s' "http://alarm-messenger:3000"
+            printf -v "ALARM_MAIL_TARGET_${_t}_API_KEY" '%s' "${ALARM_MESSENGER_API_SECRET_KEY:-}"
+            printf -v "ALARM_MAIL_TARGET_${_t}_GROUPS"  '%s' ""
+            info "Ziel ${_t} vorbelegt: alarm-messenger → http://alarm-messenger:3000"
+            _gvar="ALARM_MAIL_TARGET_${_t}_GROUPS"
+            prompt_optional "$_gvar" "Alarmgruppen-Filter für Ziel ${_t} (kommagetrennt, leer = alle)" "${!_gvar:-}"
+        fi
+        ALARM_MAIL_TARGET_COUNT=$_t
+    else
+        info "Bereits konfigurierte Ziele:"
+        for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+            _tv="ALARM_MAIL_TARGET_${_i}_TYPE"; _uv="ALARM_MAIL_TARGET_${_i}_URL"
+            _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
+            _gdisp="${!_gv:-}"; [[ -n "$_gdisp" ]] && _gdisp=" (Gruppen: ${_gdisp})" || _gdisp=" (alle Gruppen)"
+            info "  Ziel ${_i}: ${!_tv} → ${!_uv}${_gdisp}"
+        done
+    fi
+
+    # Weitere (externe) Ziele hinzufügen
+    while yes_no "Weiteres Ziel hinzufügen?" "n"; do
+        ALARM_MAIL_TARGET_COUNT=$((ALARM_MAIL_TARGET_COUNT + 1))
+        _n=$ALARM_MAIL_TARGET_COUNT
+        echo ""
+        info "Neues Ziel ${_n}:"
+        _tv="ALARM_MAIL_TARGET_${_n}_TYPE"
+        _uv="ALARM_MAIL_TARGET_${_n}_URL"
+        _akv="ALARM_MAIL_TARGET_${_n}_API_KEY"
+        _gv="ALARM_MAIL_TARGET_${_n}_GROUPS"
+        prompt_optional "$_tv"  "Ziel-Typ (alarm-monitor/alarm-messenger)" "${!_tv:-alarm-monitor}"
+        prompt_value   "$_uv"  "Ziel-URL (z.B. https://monitor.example.com)" "${!_uv:-}" false
+        prompt_value   "$_akv" "API-Key" "${!_akv:-}" true
+        prompt_optional "$_gv"  "Alarmgruppen-Filter (kommagetrennt, leer = alle)" "${!_gv:-}"
+    done
+
+    if [[ "${ALARM_MAIL_TARGET_COUNT:-0}" -eq 0 ]]; then
+        die "alarm-mail benötigt mindestens ein Ziel."
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -491,6 +560,80 @@ case "$PKG_MGR" in
         ;;
 esac
 ok "Basis-Pakete installiert."
+
+# ---------------------------------------------------------------------------
+# Schritt A2: Systemlokalisierung konfigurieren (Deutsch)
+# ---------------------------------------------------------------------------
+step "Systemlokalisierung konfigurieren (Sprache: Deutsch, Tastatur: de, Zeitzone: ${TZ})"
+
+case "$PKG_MGR" in
+    apt)
+        eval "${PKG_INSTALL} locales keyboard-configuration console-setup" 2>/dev/null || true
+        # Locale: de_DE.UTF-8 aktivieren
+        if ! grep -q "^de_DE.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null; then
+            sudo sed -i 's/^#\s*de_DE\.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen
+            # Falls sed nichts gefunden hat (Zeile fehlte), einfach anhängen
+            grep -q "^de_DE.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null \
+                || echo "de_DE.UTF-8 UTF-8" | sudo tee -a /etc/locale.gen > /dev/null
+        fi
+        sudo locale-gen de_DE.UTF-8 2>/dev/null || true
+        sudo update-locale LANG=de_DE.UTF-8 LC_ALL=de_DE.UTF-8 LANGUAGE=de_DE:de 2>/dev/null || true
+        # Tastatur-Layout auf Deutsch setzen
+        if [[ -f /etc/default/keyboard ]]; then
+            sudo sed -i 's/^XKBLAYOUT=.*/XKBLAYOUT="de"/' /etc/default/keyboard
+            sudo sed -i 's/^XKBVARIANT=.*/XKBVARIANT=""/' /etc/default/keyboard
+        else
+            printf 'XKBLAYOUT="de"\nXKBVARIANT=""\nXKBOPTIONS=""\n' \
+                | sudo tee /etc/default/keyboard > /dev/null
+        fi
+        sudo dpkg-reconfigure -f noninteractive keyboard-configuration 2>/dev/null || true
+        sudo setupcon 2>/dev/null || true
+        ;;
+    dnf|yum)
+        eval "${PKG_INSTALL} glibc-langpack-de" 2>/dev/null || true
+        sudo localectl set-locale LANG=de_DE.UTF-8 LC_ALL=de_DE.UTF-8 LANGUAGE=de_DE:de 2>/dev/null || true
+        sudo localectl set-keymap de 2>/dev/null || true
+        sudo localectl set-x11-keymap de "" "" "" 2>/dev/null || true
+        ;;
+    pacman)
+        # Locale aktivieren
+        if ! grep -q "^de_DE.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null; then
+            sudo sed -i 's/^#de_DE\.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen
+        fi
+        sudo locale-gen 2>/dev/null || true
+        echo 'LANG=de_DE.UTF-8' | sudo tee /etc/locale.conf > /dev/null
+        # Konsolen-Tastatur
+        if [[ -f /etc/vconsole.conf ]]; then
+            sudo sed -i 's/^KEYMAP=.*/KEYMAP=de-latin1/' /etc/vconsole.conf
+        else
+            echo 'KEYMAP=de-latin1' | sudo tee /etc/vconsole.conf > /dev/null
+        fi
+        sudo localectl set-x11-keymap de 2>/dev/null || true
+        ;;
+    zypper)
+        eval "${PKG_INSTALL} glibc-locale-de" 2>/dev/null || true
+        sudo localectl set-locale LANG=de_DE.UTF-8 2>/dev/null || true
+        sudo localectl set-keymap de 2>/dev/null || true
+        sudo localectl set-x11-keymap de "" "" "" 2>/dev/null || true
+        ;;
+    apk)
+        eval "${PKG_INSTALL} musl-locales musl-locales-lang" 2>/dev/null || true
+        if grep -q "^LANG=" /etc/environment 2>/dev/null; then
+            sudo sed -i 's/^LANG=.*/LANG=de_DE.UTF-8/' /etc/environment
+        else
+            echo 'LANG=de_DE.UTF-8' | sudo tee -a /etc/environment > /dev/null
+        fi
+        # Tastatur-Layout (X11, falls vorhanden)
+        sudo localectl set-x11-keymap de 2>/dev/null || true
+        ;;
+esac
+
+# Zeitzone system-weit setzen (zusätzlich zur TZ-Umgebungsvariable in Docker)
+sudo timedatectl set-timezone "${TZ}" 2>/dev/null \
+    || sudo ln -sf "/usr/share/zoneinfo/${TZ}" /etc/localtime 2>/dev/null \
+    || true
+
+ok "Lokalisierung konfiguriert: de_DE.UTF-8 / Tastatur: de / Zeitzone: ${TZ}"
 
 # ---------------------------------------------------------------------------
 # Schritt B: Docker installieren
@@ -643,6 +786,19 @@ ${ALARM_MAIL_DEDUP_TTL:+ALARM_MAIL_DEDUP_TTL=${ALARM_MAIL_DEDUP_TTL}}
 ${ALARM_MAIL_DEDUP_DB:+ALARM_MAIL_DEDUP_DB=${ALARM_MAIL_DEDUP_DB}}
 
 EOF
+    for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+        _tv="ALARM_MAIL_TARGET_${_i}_TYPE"
+        _uv="ALARM_MAIL_TARGET_${_i}_URL"
+        _akv="ALARM_MAIL_TARGET_${_i}_API_KEY"
+        _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
+        cat >> "${ENV_FILE}" <<EOF
+ALARM_MAIL_TARGET_${_i}_TYPE=${!_tv}
+ALARM_MAIL_TARGET_${_i}_URL=${!_uv}
+ALARM_MAIL_TARGET_${_i}_API_KEY=${!_akv}
+EOF
+        [[ -n "${!_gv:-}" ]] && echo "ALARM_MAIL_TARGET_${_i}_GROUPS=${!_gv}" >> "${ENV_FILE}"
+    done
+    echo "" >> "${ENV_FILE}"
 fi
 
 chmod 600 "${ENV_FILE}"
@@ -791,15 +947,19 @@ if [[ "$INSTALL_MAIL" == "true" ]]; then
       - TZ=${TZ:-Europe/Berlin}
 EOF
 
-    # Targets
-    [[ "$INSTALL_MONITOR" == "true" ]] && cat >> "${COMPOSE_FILE}" <<'EOF'
-      - ALARM_MAIL_ALARM_MONITOR_URL=http://alarm-monitor:8000
-      - ALARM_MAIL_ALARM_MONITOR_API_KEY=${ALARM_MONITOR_API_KEY}
+    # Multitarget-Umgebungsvariablen
+    for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+        _tv="ALARM_MAIL_TARGET_${_i}_TYPE"
+        _uv="ALARM_MAIL_TARGET_${_i}_URL"
+        _akv="ALARM_MAIL_TARGET_${_i}_API_KEY"
+        _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
+        cat >> "${COMPOSE_FILE}" <<EOF
+      - ALARM_MAIL_TARGET_${_i}_TYPE=\${ALARM_MAIL_TARGET_${_i}_TYPE}
+      - ALARM_MAIL_TARGET_${_i}_URL=\${ALARM_MAIL_TARGET_${_i}_URL}
+      - ALARM_MAIL_TARGET_${_i}_API_KEY=\${ALARM_MAIL_TARGET_${_i}_API_KEY}
 EOF
-    [[ "$INSTALL_MESSENGER" == "true" ]] && cat >> "${COMPOSE_FILE}" <<'EOF'
-      - ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
-      - ALARM_MAIL_ALARM_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
-EOF
+        [[ -n "${!_gv:-}" ]] && echo "      - ALARM_MAIL_TARGET_${_i}_GROUPS=\${ALARM_MAIL_TARGET_${_i}_GROUPS}" >> "${COMPOSE_FILE}"
+    done
 
     cat >> "${COMPOSE_FILE}" <<'EOF'
     healthcheck:
@@ -810,18 +970,23 @@ EOF
       retries: 3
 EOF
 
-    echo "    depends_on:" >> "${COMPOSE_FILE}"
-    if [[ "$INSTALL_MONITOR" == "true" ]]; then
-        cat >> "${COMPOSE_FILE}" <<'EOF'
+    _has_depends=false
+    [[ "$INSTALL_MONITOR"   == "true" ]] && _has_depends=true
+    [[ "$INSTALL_MESSENGER" == "true" ]] && _has_depends=true
+    if [[ "$_has_depends" == "true" ]]; then
+        echo "    depends_on:" >> "${COMPOSE_FILE}"
+        if [[ "$INSTALL_MONITOR" == "true" ]]; then
+            cat >> "${COMPOSE_FILE}" <<'EOF'
       alarm-monitor:
         condition: service_healthy
 EOF
-    fi
-    if [[ "$INSTALL_MESSENGER" == "true" ]]; then
-        cat >> "${COMPOSE_FILE}" <<'EOF'
+        fi
+        if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+            cat >> "${COMPOSE_FILE}" <<'EOF'
       alarm-messenger:
         condition: service_healthy
 EOF
+        fi
     fi
 fi
 
@@ -991,7 +1156,43 @@ docker compose logs --tail=100 -f "$@"
 EOF
 chmod +x "${INSTALL_DIR}/logs.sh"
 
-ok "Hilfsskripte erstellt: update.sh, backup.sh, status.sh, logs.sh"
+# os-update.sh
+cat > "${INSTALL_DIR}/os-update.sh" <<'EOF'
+#!/usr/bin/env bash
+# os-update.sh – Betriebssystem-Pakete aktualisieren
+# Wird automatisch wöchentlich via Cron ausgeführt (Sonntag 02:30 Uhr).
+set -euo pipefail
+LOG="/var/log/alarm-system-os-update.log"
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
+
+log "OS-Update gestartet"
+
+if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y -q
+    apt-get autoremove -y -q
+    apt-get clean -q
+elif command -v dnf >/dev/null 2>&1; then
+    dnf upgrade -y -q
+    dnf autoremove -y -q
+elif command -v yum >/dev/null 2>&1; then
+    yum upgrade -y -q
+elif command -v pacman >/dev/null 2>&1; then
+    pacman -Syu --noconfirm --quiet
+elif command -v zypper >/dev/null 2>&1; then
+    zypper refresh -q && zypper update -y -q
+elif command -v apk >/dev/null 2>&1; then
+    apk update -q && apk upgrade -q
+else
+    log "FEHLER: Kein unterstützter Paketmanager gefunden."
+    exit 1
+fi
+
+log "OS-Update abgeschlossen"
+EOF
+chmod +x "${INSTALL_DIR}/os-update.sh"
+
+ok "Hilfsskripte erstellt: update.sh, os-update.sh, backup.sh, status.sh, logs.sh"
 
 # ---------------------------------------------------------------------------
 # Schritt G: Kiosk-Modus konfigurieren
@@ -1075,7 +1276,11 @@ PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 mkdir -p "\${PROFILE_DIR}/Default"
 chmod 700 "\${PROFILE_DIR}"
 cat > "\${PROFILE_DIR}/Default/Preferences" <<'PREF' 2>/dev/null || true
-{"profile":{"exit_type":"Normal","exited_cleanly":true}}
+{
+  "profile": {"exit_type": "Normal", "exited_cleanly": true},
+  "translate": {"enabled": false},
+  "translate_blocked_languages": ["de"]
+}
 PREF
 
 # Cache beim Start leeren (stellt sicher, dass aktuelle App-Versionen geladen werden)
@@ -1098,6 +1303,7 @@ trap 'clear_browser_cache' EXIT
     --disable-infobars \\
     --disable-translate \\
     --disable-features=TranslateUI \\
+    --lang=de \\
     --disable-session-crashed-bubble \\
     --disable-restore-session-state \\
     --disable-component-update \\
@@ -1110,6 +1316,10 @@ EOF
     # Openbox-Autostart
     mkdir -p "${HOME}/.config/openbox"
     cat > "${HOME}/.config/openbox/autostart" <<EOF
+# Sprache und Tastaturlayout (Deutsch)
+export LANG=de_DE.UTF-8
+setxkbmap de &
+
 # Bildschirmschoner & DPMS deaktivieren
 xset s off &
 xset s noblank &
@@ -1147,8 +1357,353 @@ EOF
     sudo systemctl daemon-reload
     sudo systemctl enable "getty@tty1.service" 2>/dev/null || true
 
+    # -----------------------------------------------------------------------
+    # watchdog.sh – überwacht Dienste-Gesundheit und Kiosk-Prozess
+    # -----------------------------------------------------------------------
+    WATCHDOG_SCRIPT="${INSTALL_DIR}/watchdog.sh"
+    cat > "${WATCHDOG_SCRIPT}" <<EOF
+#!/usr/bin/env bash
+# watchdog.sh – Überwacht Alarm-System-Dienste und den Kiosk-Browser
+
+MONITOR_URL="http://localhost:${ALARM_MONITOR_PORT:-8000}"
+CHECK_INTERVAL=30
+LOG_FILE="/var/log/alarm-system-watchdog.log"
+
+log() { echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >> "\$LOG_FILE"; }
+
+log "Watchdog gestartet"
+
+while true; do
+    # Docker-Dienste prüfen
+    if ! curl -sf --max-time 5 "\${MONITOR_URL}/health" > /dev/null 2>&1; then
+        log "WARNUNG: alarm-monitor nicht erreichbar – starte Docker-Dienste neu"
+        cd "${INSTALL_DIR}" && docker compose restart >> "\$LOG_FILE" 2>&1
+    fi
+
+    # X-Display prüfen (nur wenn kiosk läuft)
+    if command -v xdpyinfo >/dev/null 2>&1; then
+        if ! DISPLAY=:0 xdpyinfo > /dev/null 2>&1; then
+            log "WARNUNG: X-Display nicht aktiv – starte kiosk-watchdog-check"
+            systemctl --user restart kiosk.service 2>/dev/null || true
+        fi
+    fi
+
+    sleep "\$CHECK_INTERVAL"
+done
+EOF
+    chmod +x "${WATCHDOG_SCRIPT}"
+    ok "watchdog.sh erstellt."
+
+    # -----------------------------------------------------------------------
+    # kiosk.service – systemd-Unit für den Kiosk-Browser
+    # -----------------------------------------------------------------------
+    sudo tee /etc/systemd/system/kiosk.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Kiosk Browser
+After=network-online.target alarm-system.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SCRIPT_USER}
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=${HOME}/.Xauthority
+WorkingDirectory=${INSTALL_DIR}
+ExecStartPre=/bin/sleep 5
+ExecStart=${KIOSK_SCRIPT}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    ok "kiosk.service erstellt."
+
+    # -----------------------------------------------------------------------
+    # kiosk-watchdog.service
+    # -----------------------------------------------------------------------
+    sudo tee /etc/systemd/system/kiosk-watchdog.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Kiosk Watchdog
+After=kiosk.service alarm-system.service
+Requires=alarm-system.service
+
+[Service]
+Type=simple
+User=${SCRIPT_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=${WATCHDOG_SCRIPT}
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    ok "kiosk-watchdog.service erstellt."
+
+    # -----------------------------------------------------------------------
+    # alarm-sound.sh + alarm-sound.service (nur wenn alarm-monitor installiert)
+    # -----------------------------------------------------------------------
+    if [[ "$INSTALL_MONITOR" == "true" ]]; then
+        SOUND_DIR="${INSTALL_DIR}/sounds"
+        SOUND_FILE="${SOUND_DIR}/alarm.wav"
+        ALARM_SOUND_SCRIPT="${INSTALL_DIR}/alarm-sound.sh"
+        sudo mkdir -p "${SOUND_DIR}"
+        sudo chown "${SCRIPT_USER}:${SCRIPT_USER}" "${SOUND_DIR}"
+
+        cat > "${ALARM_SOUND_SCRIPT}" <<EOF
+#!/usr/bin/env bash
+# alarm-sound.sh – Überwacht neue Alarme und spielt Sound ab
+
+DASHBOARD_URL="http://localhost:${ALARM_MONITOR_PORT:-8000}"
+SOUND_FILE="${SOUND_FILE}"
+STATE_FILE="/tmp/last_alarm_id"
+CHECK_INTERVAL=10
+LOG_FILE="/var/log/alarm-sound.log"
+
+log() { echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >> "\$LOG_FILE"; }
+
+log "Alarm-Sound-Service gestartet"
+
+LAST_ID=\$(curl -sf "\${DASHBOARD_URL}/api/alarms/latest" 2>/dev/null | \\
+          python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',0))" 2>/dev/null || echo "0")
+echo "\$LAST_ID" > "\$STATE_FILE"
+log "Initialer letzter Alarm-ID: \$LAST_ID"
+
+while true; do
+    sleep "\$CHECK_INTERVAL"
+    LATEST=\$(curl -sf --max-time 5 "\${DASHBOARD_URL}/api/alarms/latest" 2>/dev/null)
+    [ -z "\$LATEST" ] && continue
+
+    CURRENT_ID=\$(echo "\$LATEST" | \\
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',0))" 2>/dev/null || echo "0")
+    SAVED_ID=\$(cat "\$STATE_FILE" 2>/dev/null || echo "0")
+
+    if [ "\$CURRENT_ID" != "\$SAVED_ID" ] && [ "\$CURRENT_ID" -gt "\$SAVED_ID" ] 2>/dev/null; then
+        log "Neuer Alarm erkannt (ID: \$CURRENT_ID) – spiele Sound ab"
+        echo "\$CURRENT_ID" > "\$STATE_FILE"
+        for i in 1 2 3; do
+            aplay -q "\$SOUND_FILE" 2>/dev/null || sox "\$SOUND_FILE" -d 2>/dev/null || true
+            sleep 0.5
+        done
+    fi
+done
+EOF
+        chmod +x "${ALARM_SOUND_SCRIPT}"
+        ok "alarm-sound.sh erstellt."
+
+        # Test-Alarmton generieren
+        if [[ ! -f "${SOUND_FILE}" ]]; then
+            if command -v sox >/dev/null 2>&1; then
+                sox -n "${SOUND_FILE}" \
+                    synth 1 sine 880 synth 0.3 sine 1200 gain -3 2>/dev/null \
+                    && ok "Test-Alarm-Ton erstellt: ${SOUND_FILE}" \
+                    || warn "Test-Ton konnte nicht generiert werden."
+            else
+                warn "sox nicht verfügbar – alarm.wav bitte manuell unter ${SOUND_FILE} ablegen."
+            fi
+        else
+            info "alarm.wav bereits vorhanden – übersprungen."
+        fi
+
+        sudo tee /etc/systemd/system/alarm-sound.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Sound-Alert
+After=alarm-system.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SCRIPT_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=${ALARM_SOUND_SCRIPT}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        ok "alarm-sound.service erstellt."
+    fi
+
+    # -----------------------------------------------------------------------
+    # Alle neuen Services aktivieren
+    # -----------------------------------------------------------------------
+    sudo systemctl daemon-reload
+    sudo systemctl enable kiosk.service kiosk-watchdog.service 2>/dev/null || true
+    [[ "$INSTALL_MONITOR" == "true" ]] && sudo systemctl enable alarm-sound.service 2>/dev/null || true
+    ok "Kiosk-Services aktiviert (starten automatisch nach Neustart)."
+
+    # -----------------------------------------------------------------------
+    # Wöchentlicher Neustart (Sonntag 03:00 Uhr) – hält den Kiosk frisch
+    # -----------------------------------------------------------------------
+    # Alten täglichen Eintrag entfernen, falls vorhanden
+    sudo crontab -l 2>/dev/null | grep -vF "0 3 * * * /sbin/reboot" | sudo crontab - 2>/dev/null || true
+    if ! sudo crontab -l 2>/dev/null | grep -qF "0 3 * * 0 /sbin/reboot"; then
+        (sudo crontab -l 2>/dev/null; echo "0 3 * * 0 /sbin/reboot") | sudo crontab -
+        ok "Cron-Job für wöchentlichen Neustart (Sonntag 03:00 Uhr) eingerichtet."
+    else
+        info "Wöchentlicher Reboot-Cron bereits vorhanden."
+    fi
+
     ok "Kiosk-Modus konfiguriert."
     info "Beim nächsten Neustart startet ${KIOSK_BIN} automatisch → ${KIOSK_URL}"
+fi
+
+# ---------------------------------------------------------------------------
+# Schritt G2: alarm-system.service – Docker Compose automatisch starten
+# ---------------------------------------------------------------------------
+step "Systemd-Service alarm-system.service einrichten"
+
+sudo tee /etc/systemd/system/alarm-system.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Docker Compose
+Documentation=https://github.com/TimUx/alarm-system
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=${SCRIPT_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable alarm-system.service 2>/dev/null || true
+ok "alarm-system.service aktiviert (startet automatisch nach Neustart)."
+
+# ---------------------------------------------------------------------------
+# Schritt G3: Raspberry Pi Optimierungen
+# ---------------------------------------------------------------------------
+if [[ "$IS_RPI" == "true" ]]; then
+    step "Raspberry Pi Optimierungen"
+
+    # Plymouth Splashscreen (Debian/Raspberry Pi OS)
+    if [[ "$PKG_MGR" == "apt" ]]; then
+        eval "${PKG_INSTALL} plymouth plymouth-themes" 2>/dev/null || true
+        sudo mkdir -p /usr/share/plymouth/themes/alarm-system
+
+        sudo tee /usr/share/plymouth/themes/alarm-system/alarm-system.plymouth > /dev/null <<'PLYM'
+[Plymouth Theme]
+Name=Alarm-System
+Description=Alarm-System Ladebildschirm
+ModuleName=text
+
+[text]
+Title=Alarm-System lädt...
+SubTitle=Bitte warten...
+PLYM
+
+        sudo tee /usr/share/plymouth/themes/alarm-system/alarm-system.script > /dev/null <<'PLYMSCRIPT'
+Window.SetBackgroundTopColor(0.8, 0.1, 0.1);
+Window.SetBackgroundBottomColor(0.5, 0.0, 0.0);
+message_sprite = Sprite();
+message_sprite.SetPosition(Window.GetWidth()/2-200, Window.GetHeight()/2-20, 10000);
+my_image = Image.Text("Alarm-System lädt...", 1.0, 1.0, 1.0);
+message_sprite.SetImage(my_image);
+PLYMSCRIPT
+
+        sudo update-alternatives --install \
+            /usr/share/plymouth/themes/default.plymouth \
+            default.plymouth \
+            /usr/share/plymouth/themes/alarm-system/alarm-system.plymouth 100 2>/dev/null || true
+        sudo update-alternatives --set \
+            default.plymouth \
+            /usr/share/plymouth/themes/alarm-system/alarm-system.plymouth 2>/dev/null || true
+        sudo update-initramfs -u 2>/dev/null || warn "update-initramfs fehlgeschlagen – Plymouth ohne Wirkung bis zum nächsten Kernel-Update."
+        ok "Plymouth-Splashscreen eingerichtet."
+    fi
+
+    # Stille Boot-Parameter (/boot/firmware/cmdline.txt oder /boot/cmdline.txt)
+    for CMDLINE_FILE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
+        if [[ -f "$CMDLINE_FILE" ]]; then
+            if ! grep -q "quiet splash" "$CMDLINE_FILE"; then
+                # cmdline.txt is a single line; use echo + truncation to avoid sed '$' edge-cases
+                CMDLINE_CURRENT="$(cat "$CMDLINE_FILE")"
+                echo "${CMDLINE_CURRENT% } quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0" \
+                    | sudo tee "$CMDLINE_FILE" > /dev/null
+                ok "Stille Boot-Parameter gesetzt: ${CMDLINE_FILE}"
+            else
+                info "Boot-Parameter bereits vorhanden: ${CMDLINE_FILE}"
+            fi
+            break
+        fi
+    done
+
+    # config.txt Optimierungen
+    for CONFIG_FILE in /boot/firmware/config.txt /boot/config.txt; do
+        if [[ -f "$CONFIG_FILE" ]]; then
+            # GPU-Speicher auf 128 MB (ausreichend für Kiosk/Browser)
+            if grep -q "^gpu_mem=" "$CONFIG_FILE"; then
+                sudo sed -i 's/^gpu_mem=.*/gpu_mem=128/' "$CONFIG_FILE"
+            else
+                printf '\n# GPU-Speicher (Kiosk-Modus)\ngpu_mem=128\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
+            fi
+            # HDMI erzwingen (kein Blank-Screen wenn Monitor später angeschlossen wird)
+            if ! grep -q "hdmi_force_hotplug" "$CONFIG_FILE"; then
+                printf '\n# HDMI erzwingen\nhdmi_force_hotplug=1\nhdmi_group=1\nhdmi_mode=16\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
+            fi
+            # Bluetooth deaktivieren (reduziert Ressourcen/Störquellen)
+            if ! grep -q "disable-bt" "$CONFIG_FILE"; then
+                echo "dtoverlay=disable-bt" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            fi
+            ok "Raspberry Pi config.txt optimiert: ${CONFIG_FILE}"
+            break
+        fi
+    done
+
+    # Unnötige Dienste deaktivieren
+    # Hinweis: apt-daily-Timer werden deaktiviert, damit unerwünschte Updates den Kiosk nicht
+    # unterbrechen. OS-Updates werden stattdessen durch den wöchentlichen Cron-Job (Schritt G4)
+    # kontrolliert eingespielt (Sonntag 02:30 Uhr, vor dem wöchentlichen Neustart um 03:00 Uhr).
+    for svc in bluetooth.service hciuart.service avahi-daemon.service triggerhappy.service \
+               apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer; do
+        sudo systemctl disable --now "$svc" 2>/dev/null || true
+    done
+    ok "Unnötige Dienste deaktiviert (Bluetooth, Avahi, apt-daily …)."
+    info "apt-daily-Timer deaktiviert – OS-Updates werden durch den wöchentlichen Cron-Job (Schritt G4) erledigt."
+
+    ok "Raspberry Pi Optimierungen abgeschlossen."
+fi
+
+# ---------------------------------------------------------------------------
+# Schritt G4: Automatische wöchentliche Updates
+# ---------------------------------------------------------------------------
+step "Automatische wöchentliche Updates einrichten"
+
+# OS-Update: Sonntag 02:30 Uhr (root-Cron, da apt/dnf root benötigt)
+OS_UPDATE_CRON="30 2 * * 0 ${INSTALL_DIR}/os-update.sh"
+if ! sudo crontab -l 2>/dev/null | grep -qF "${INSTALL_DIR}/os-update.sh"; then
+    (sudo crontab -l 2>/dev/null; echo "${OS_UPDATE_CRON}") | sudo crontab -
+    ok "OS-Update Cron eingerichtet (Sonntag 02:30 Uhr)."
+else
+    info "OS-Update Cron bereits vorhanden."
+fi
+
+# Docker-Update: Sonntag 02:45 Uhr (läuft als SCRIPT_USER, daher im User-Cron)
+DOCKER_UPDATE_CRON="45 2 * * 0 ${INSTALL_DIR}/update.sh >> /var/log/alarm-system-docker-update.log 2>&1"
+if ! crontab -u "${SCRIPT_USER}" -l 2>/dev/null | grep -qF "${INSTALL_DIR}/update.sh"; then
+    (crontab -u "${SCRIPT_USER}" -l 2>/dev/null; echo "${DOCKER_UPDATE_CRON}") | crontab -u "${SCRIPT_USER}" -
+    ok "Docker-Update Cron eingerichtet (Sonntag 02:45 Uhr)."
+else
+    info "Docker-Update Cron bereits vorhanden."
 fi
 
 # ---------------------------------------------------------------------------
@@ -1247,17 +1802,22 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
 fi
 
 echo -e "  ${BOLD}Nützliche Befehle:${NC}"
-echo -e "    ${CYAN}${INSTALL_DIR}/status.sh${NC}    – Container-Status & Ressourcen"
-echo -e "    ${CYAN}${INSTALL_DIR}/logs.sh${NC}      – Live-Logs"
-echo -e "    ${CYAN}${INSTALL_DIR}/update.sh${NC}    – System aktualisieren"
-echo -e "    ${CYAN}${INSTALL_DIR}/backup.sh${NC}    – Backup erstellen"
+echo -e "    ${CYAN}${INSTALL_DIR}/status.sh${NC}      – Container-Status & Ressourcen"
+echo -e "    ${CYAN}${INSTALL_DIR}/logs.sh${NC}        – Live-Logs"
+echo -e "    ${CYAN}${INSTALL_DIR}/update.sh${NC}      – Docker Images manuell aktualisieren"
+echo -e "    ${CYAN}sudo ${INSTALL_DIR}/os-update.sh${NC} – OS-Pakete manuell aktualisieren"
+echo -e "    ${CYAN}${INSTALL_DIR}/backup.sh${NC}      – Backup erstellen"
 echo -e "    ${CYAN}cd ${INSTALL_DIR} && docker compose ps${NC}"
+echo -e "  ${BOLD}Automatische Updates (wöchentlich, Sonntag):${NC}"
+echo -e "    02:30 – OS-Update  (${INSTALL_DIR}/os-update.sh)"
+echo -e "    02:45 – Docker-Update  (${INSTALL_DIR}/update.sh)"
 echo ""
 
 if [[ "$INSTALL_KIOSK" == "true" ]]; then
     echo -e "  ${BOLD}Kiosk-Modus:${NC}"
     echo -e "    Neustart erforderlich für automatischen X-Start."
     echo -e "    ${CYAN}sudo reboot${NC}"
+    echo -e "    Wöchentlicher Neustart: Sonntag 03:00 Uhr (Cron)"
     echo ""
 fi
 
