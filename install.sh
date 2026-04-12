@@ -1402,7 +1402,7 @@ EOF
     # -----------------------------------------------------------------------
     # Nächtlicher Neustart (03:00 Uhr) – hält den Kiosk frisch
     # -----------------------------------------------------------------------
-    if ! sudo crontab -l 2>/dev/null | grep -q "reboot"; then
+    if ! sudo crontab -l 2>/dev/null | grep -qF "0 3 * * * /sbin/reboot"; then
         (sudo crontab -l 2>/dev/null; echo "0 3 * * * /sbin/reboot") | sudo crontab -
         ok "Cron-Job für täglichen Neustart um 03:00 Uhr eingerichtet."
     else
@@ -1427,7 +1427,7 @@ Requires=docker.service
 Wants=network-online.target
 
 [Service]
-Type=forking
+Type=oneshot
 User=${SCRIPT_USER}
 WorkingDirectory=${INSTALL_DIR}
 ExecStart=/usr/bin/docker compose up -d
@@ -1492,7 +1492,10 @@ PLYMSCRIPT
     for CMDLINE_FILE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
         if [[ -f "$CMDLINE_FILE" ]]; then
             if ! grep -q "quiet splash" "$CMDLINE_FILE"; then
-                sudo sed -i 's/$/ quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0/' "$CMDLINE_FILE"
+                # cmdline.txt is a single line; use echo + truncation to avoid sed '$' edge-cases
+                CMDLINE_CURRENT="$(cat "$CMDLINE_FILE")"
+                echo "${CMDLINE_CURRENT% } quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0" \
+                    | sudo tee "$CMDLINE_FILE" > /dev/null
                 ok "Stille Boot-Parameter gesetzt: ${CMDLINE_FILE}"
             else
                 info "Boot-Parameter bereits vorhanden: ${CMDLINE_FILE}"
@@ -1522,11 +1525,15 @@ PLYMSCRIPT
     done
 
     # Unnötige Dienste deaktivieren
+    # Hinweis: apt-daily-Timer werden deaktiviert, damit unerwünschte Updates den Kiosk nicht
+    # unterbrechen. Sicherheits-Updates sollten stattdessen manuell oder per Wartungsfenster
+    # (z.B. nach dem nächtlichen Neustart) eingespielt werden.
     for svc in bluetooth.service hciuart.service avahi-daemon.service triggerhappy.service \
                apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer; do
         sudo systemctl disable --now "$svc" 2>/dev/null || true
     done
     ok "Unnötige Dienste deaktiviert (Bluetooth, Avahi, apt-daily …)."
+    warn "apt-daily-Timer deaktiviert – Sicherheits-Updates bitte manuell einspielen (sudo apt-get upgrade)."
 
     ok "Raspberry Pi Optimierungen abgeschlossen."
 fi
