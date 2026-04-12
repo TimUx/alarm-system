@@ -168,7 +168,7 @@ save_state() {
         for _v in "${_vars[@]}"; do
             printf '%s=%q\n' "$_v" "${!_v:-}"
         done
-        for _i in $(seq 1 "${ALARM_MAIL_TARGET_COUNT:-0}"); do
+        for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
             for _suffix in TYPE URL API_KEY GROUPS; do
                 _v="ALARM_MAIL_TARGET_${_i}_${_suffix}"
                 printf '%s=%q\n' "$_v" "${!_v:-}"
@@ -477,7 +477,7 @@ if [[ "$INSTALL_MAIL" == "true" ]]; then
         ALARM_MAIL_TARGET_COUNT=$_t
     else
         info "Bereits konfigurierte Ziele:"
-        for _i in $(seq 1 "$ALARM_MAIL_TARGET_COUNT"); do
+        for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
             _tv="ALARM_MAIL_TARGET_${_i}_TYPE"; _uv="ALARM_MAIL_TARGET_${_i}_URL"
             _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
             _gdisp="${!_gv:-}"; [[ -n "$_gdisp" ]] && _gdisp=" (Gruppen: ${_gdisp})" || _gdisp=" (alle Gruppen)"
@@ -786,7 +786,7 @@ ${ALARM_MAIL_DEDUP_TTL:+ALARM_MAIL_DEDUP_TTL=${ALARM_MAIL_DEDUP_TTL}}
 ${ALARM_MAIL_DEDUP_DB:+ALARM_MAIL_DEDUP_DB=${ALARM_MAIL_DEDUP_DB}}
 
 EOF
-    for _i in $(seq 1 "${ALARM_MAIL_TARGET_COUNT:-0}"); do
+    for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
         _tv="ALARM_MAIL_TARGET_${_i}_TYPE"
         _uv="ALARM_MAIL_TARGET_${_i}_URL"
         _akv="ALARM_MAIL_TARGET_${_i}_API_KEY"
@@ -948,7 +948,7 @@ if [[ "$INSTALL_MAIL" == "true" ]]; then
 EOF
 
     # Multitarget-Umgebungsvariablen
-    for _i in $(seq 1 "${ALARM_MAIL_TARGET_COUNT:-0}"); do
+    for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
         _tv="ALARM_MAIL_TARGET_${_i}_TYPE"
         _uv="ALARM_MAIL_TARGET_${_i}_URL"
         _akv="ALARM_MAIL_TARGET_${_i}_API_KEY"
