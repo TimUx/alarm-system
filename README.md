@@ -77,13 +77,84 @@ Nur folgende Dienste benötigen externe Ports:
 
 ## Schnellstart
 
-### Voraussetzungen
+### 🚀 1-Click Installation (empfohlen)
 
+Das einfachste Vorgehen: das interaktive `install.sh` direkt herunterladen und ausführen.
+Es erkennt automatisch die Prozessor-Architektur und Linux-Distribution, installiert Docker,
+fragt alle nötigen Zugangsdaten interaktiv ab und richtet das System vollständig ein.
+
+**Voraussetzungen:**
+- Linux-Server (beliebige Distribution: Debian, Ubuntu, Raspberry Pi OS, Fedora, Arch, openSUSE, Alpine …)
+- Beliebige Architektur: x86_64, arm64, armv7l …
+- Benutzer mit `sudo`-Rechten (das Skript **darf nicht als root** gestartet werden)
+- `curl` oder `wget` sowie Internetzugang
+
+#### Option A – curl (empfohlen)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
+```
+
+#### Option B – wget
+
+```bash
+wget -qO- https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
+```
+
+#### Option C – Manuell herunterladen & prüfen (sicherste Variante)
+
+```bash
+# Skript herunterladen
+curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh -o install.sh
+
+# Optional: Inhalt prüfen
+less install.sh
+
+# Ausführbar machen und starten
+chmod +x install.sh
+./install.sh
+```
+
+#### Was passiert beim Ausführen?
+
+Das Skript führt Sie interaktiv durch folgende Schritte:
+
+1. **Systemerkennung** – Architektur und Linux-Distribution werden automatisch erkannt
+2. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
+   (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
+3. **Kiosk-Modus** – Optional: Browser im Vollbild-Kiosk-Modus einrichten (z. B. für Raspberry Pi)
+4. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+   *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
+5. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
+6. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+
+Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
+
+```
+/opt/alarm-system/
+├── .env                 # Konfiguration (chmod 600)
+├── docker-compose.yml   # Generierte Compose-Datei
+├── caddy/Caddyfile      # Reverse-Proxy-Konfiguration (optional)
+├── update.sh            # System aktualisieren
+├── backup.sh            # Daten sichern
+├── status.sh            # Container-Status anzeigen
+├── logs.sh              # Live-Logs
+├── os-update.sh         # Betriebssystem-Pakete aktualisieren
+└── kiosk.sh             # Kiosk-Browser starten (optional)
+```
+
+> **Tipp:** Eine ausführlichere Schritt-für-Schritt-Anleitung (inkl. manuelle Installation) finden Sie in [QUICKSTART.md](QUICKSTART.md).
+
+---
+
+### Manuelle Installation
+
+Falls Sie das Skript nicht verwenden möchten, können Sie das System auch manuell einrichten.
+
+**Voraussetzungen:**
 - Docker Engine 20.10+
 - Docker Compose v2.0+
 - Zugang zu einem IMAP-Postfach für Alarm-E-Mails
-
-### Installation
 
 1. **Repository klonen**
    ```bash
@@ -150,7 +221,7 @@ Nur folgende Dienste benötigen externe Ports:
 
 ### Erster Start - Admin-Benutzer erstellen
 
-Für das Messenger-Admin-Interface muss zunächst ein Admin-Benutzer erstellt werden:
+Für das Messenger-Admin-Interface muss zunächst ein Admin-Benutzer erstellt werden (bei manueller Installation):
 
 ```bash
 curl -X POST http://localhost:3000/api/admin/init \
@@ -159,6 +230,8 @@ curl -X POST http://localhost:3000/api/admin/init \
 ```
 
 Danach können Sie sich unter `http://localhost:3000/admin/login.html` anmelden.
+
+> **Hinweis:** Bei der Installation über `install.sh` wird der Admin-Benutzer automatisch während des Setup-Assistenten angelegt.
 
 ## Deployment mit SSL/TLS (Produktion)
 
@@ -220,7 +293,28 @@ Siehe [.env.example](./.env.example) für alle verfügbaren Optionen mit Erklär
 
 Das Repository enthält hilfreiche Tools für die Verwaltung:
 
-**Makefile-Befehle:**
+**Installations-Skript (primäre Installationsmethode):**
+```bash
+# Direkt herunterladen und ausführen
+curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
+
+# Oder lokal ausführen (nach git clone)
+chmod +x install.sh && ./install.sh
+```
+Das Skript installiert Docker, fragt alle Konfigurationswerte interaktiv ab, generiert `.env` und
+`docker-compose.yml` und richtet optional einen Kiosk-Browser ein.
+
+**Von install.sh generierte Skripte** (unter `/opt/alarm-system/`):
+```bash
+./update.sh      # Docker-Images aktualisieren und Services neu starten
+./backup.sh      # Alle Volumes und .env sichern (behält Backups 30 Tage)
+./status.sh      # Container-Status und Resource-Verbrauch anzeigen
+./logs.sh        # Live-Logs aller Dienste
+./os-update.sh   # Betriebssystem-Pakete aktualisieren (auch per Cron)
+./kiosk.sh       # Kiosk-Browser starten (nur wenn Kiosk-Modus aktiviert)
+```
+
+**Makefile-Befehle** (bei manueller Installation):
 ```bash
 make help          # Zeigt alle verfügbaren Befehle
 make setup         # Erstellt .env aus .env.example
