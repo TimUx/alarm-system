@@ -28,6 +28,7 @@ Dieses Repository (`alarm-system`) ist für die zentrale Integration und Orchest
    - Optimierungen der Netzwerk-Konfiguration
 
 3. **Deployment-Tools**
+   - Verbesserungen am `install.sh` (primäres Installationsskript)
    - Verbesserungen am validate-config.sh
    - Neue Makefile-Targets
    - Deployment-Skripte für verschiedene Plattformen
@@ -69,7 +70,10 @@ Dieses Repository (`alarm-system`) ist für die zentrale Integration und Orchest
 
 3. **Testen**
    ```bash
-   # Syntax-Check
+   # Installationsskript-Syntax prüfen
+   bash -n install.sh
+   
+   # Docker Compose Syntax-Check
    docker compose config --quiet
    
    # Validation
@@ -197,24 +201,34 @@ Beispiele:
 
 ### Manuelle Tests
 
-1. **Syntax-Validierung**
+1. **Installationsskript testen** (empfohlen, da primäre Installationsmethode)
+   ```bash
+   # Syntax-Check des Installationsskripts
+   bash -n install.sh
+   
+   # Vollständigen Installations-Lauf starten (interaktiv)
+   chmod +x install.sh
+   ./install.sh
+   ```
+
+2. **Syntax-Validierung**
    ```bash
    docker compose config --quiet
    ```
 
-2. **Start-Test**
+3. **Start-Test**
    ```bash
    docker compose up -d
    docker compose ps  # Alle healthy?
    ```
 
-3. **Kommunikations-Test**
+4. **Kommunikations-Test**
    ```bash
    docker compose exec alarm-mail curl http://alarm-monitor:8000/health
    docker compose exec alarm-mail curl http://alarm-messenger:3000/health
    ```
 
-4. **Cleanup**
+5. **Cleanup**
    ```bash
    docker compose down -v
    ```

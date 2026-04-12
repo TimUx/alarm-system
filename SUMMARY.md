@@ -118,18 +118,29 @@ IMAP Server (External)
 8. **LICENSE**
    - MIT License
 
-### Helper Tools (3 files)
+### Helper Tools (4 files)
 
-9. **validate-config.sh** (220+ lines)
-   - Configuration validation
-   - Checks all required variables
-   - Validates API key strength
-   - Checks for default values
-   - Docker environment verification
-   - Port availability check
-   - Color-coded output
+9. **install.sh** (primary installation method, 1500+ lines)
+   - Interactive 1-click installation wizard
+   - Auto-detects architecture (x86_64, arm64, armv7l) and Linux distribution
+   - Installs Docker and Docker Compose automatically
+   - Component selection (alarm-monitor, alarm-messenger, alarm-mail, Caddy)
+   - Configures all settings interactively with secure random key suggestions
+   - Generates `.env` and `docker-compose.yml` tailored to selected components
+   - Optional Kiosk mode (Chromium fullscreen, autologin, watchdog service)
+   - Creates helper scripts: `update.sh`, `backup.sh`, `status.sh`, `logs.sh`, `os-update.sh`
+   - Saves configuration state for re-runs
 
-10. **Makefile** (120+ lines)
+10. **validate-config.sh** (220+ lines)
+    - Configuration validation
+    - Checks all required variables
+    - Validates API key strength
+    - Checks for default values
+    - Docker environment verification
+    - Port availability check
+    - Color-coded output
+
+11. **Makefile** (120+ lines)
     - Common operations simplified
     - Setup, start, stop, restart
     - Log viewing
@@ -137,7 +148,7 @@ IMAP Server (External)
     - API key generation
     - Help documentation
 
-11. **caddy/Caddyfile** (65 lines)
+12. **caddy/Caddyfile** (65 lines)
     - Automatic HTTPS with Let's Encrypt
     - Reverse proxy configuration
     - WebSocket support
@@ -208,6 +219,29 @@ All communication patterns have been verified against the source repositories:
 - ✅ Tests port availability
 
 ## Usage Example
+
+### Recommended: 1-Click Installation
+
+```bash
+# Download and run the interactive installation script
+curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
+
+# The script will:
+# 1. Detect architecture and Linux distribution
+# 2. Install Docker and Docker Compose automatically
+# 3. Ask for component selection and configuration interactively
+# 4. Generate /opt/alarm-system/.env and docker-compose.yml
+# 5. Start all containers
+
+# Afterwards, use the generated helper scripts:
+cd /opt/alarm-system
+./status.sh       # Check container status
+./logs.sh         # Follow live logs
+./update.sh       # Update to latest images
+./backup.sh       # Backup all data
+```
+
+### Manual Installation
 
 ```bash
 # Setup
