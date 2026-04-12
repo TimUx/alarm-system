@@ -1065,7 +1065,43 @@ docker compose logs --tail=100 -f "$@"
 EOF
 chmod +x "${INSTALL_DIR}/logs.sh"
 
-ok "Hilfsskripte erstellt: update.sh, backup.sh, status.sh, logs.sh"
+# os-update.sh
+cat > "${INSTALL_DIR}/os-update.sh" <<'EOF'
+#!/usr/bin/env bash
+# os-update.sh – Betriebssystem-Pakete aktualisieren
+# Wird automatisch wöchentlich via Cron ausgeführt (Sonntag 02:30 Uhr).
+set -euo pipefail
+LOG="/var/log/alarm-system-os-update.log"
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
+
+log "OS-Update gestartet"
+
+if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y -q
+    apt-get autoremove -y -q
+    apt-get clean -q
+elif command -v dnf >/dev/null 2>&1; then
+    dnf upgrade -y -q
+    dnf autoremove -y -q
+elif command -v yum >/dev/null 2>&1; then
+    yum upgrade -y -q
+elif command -v pacman >/dev/null 2>&1; then
+    pacman -Syu --noconfirm --quiet
+elif command -v zypper >/dev/null 2>&1; then
+    zypper refresh -q && zypper update -y -q
+elif command -v apk >/dev/null 2>&1; then
+    apk update -q && apk upgrade -q
+else
+    log "FEHLER: Kein unterstützter Paketmanager gefunden."
+    exit 1
+fi
+
+log "OS-Update abgeschlossen"
+EOF
+chmod +x "${INSTALL_DIR}/os-update.sh"
+
+ok "Hilfsskripte erstellt: update.sh, os-update.sh, backup.sh, status.sh, logs.sh"
 
 # ---------------------------------------------------------------------------
 # Schritt G: Kiosk-Modus konfigurieren
@@ -1400,13 +1436,15 @@ EOF
     ok "Kiosk-Services aktiviert (starten automatisch nach Neustart)."
 
     # -----------------------------------------------------------------------
-    # Nächtlicher Neustart (03:00 Uhr) – hält den Kiosk frisch
+    # Nächtlicher Neustart (Sonntag 03:00 Uhr) – hält den Kiosk frisch
     # -----------------------------------------------------------------------
-    if ! sudo crontab -l 2>/dev/null | grep -qF "0 3 * * * /sbin/reboot"; then
-        (sudo crontab -l 2>/dev/null; echo "0 3 * * * /sbin/reboot") | sudo crontab -
-        ok "Cron-Job für täglichen Neustart um 03:00 Uhr eingerichtet."
+    # Alten täglichen Eintrag entfernen, falls vorhanden
+    sudo crontab -l 2>/dev/null | grep -vF "0 3 * * * /sbin/reboot" | sudo crontab - 2>/dev/null || true
+    if ! sudo crontab -l 2>/dev/null | grep -qF "0 3 * * 0 /sbin/reboot"; then
+        (sudo crontab -l 2>/dev/null; echo "0 3 * * 0 /sbin/reboot") | sudo crontab -
+        ok "Cron-Job für wöchentlichen Neustart (Sonntag 03:00 Uhr) eingerichtet."
     else
-        info "Reboot-Cron bereits vorhanden."
+        info "Wöchentlicher Reboot-Cron bereits vorhanden."
     fi
 
     ok "Kiosk-Modus konfiguriert."
@@ -1507,9 +1545,11 @@ PLYMSCRIPT
     # config.txt Optimierungen
     for CONFIG_FILE in /boot/firmware/config.txt /boot/config.txt; do
         if [[ -f "$CONFIG_FILE" ]]; then
-            # GPU-Speicher auf Minimum (genug für Kiosk)
-            if ! grep -q "^gpu_mem=" "$CONFIG_FILE"; then
-                printf '\n# GPU-Speicher (Kiosk-Modus)\ngpu_mem=64\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
+            # GPU-Speicher auf 128 MB (ausreichend für Kiosk/Browser)
+            if grep -q "^gpu_mem=" "$CONFIG_FILE"; then
+                sudo sed -i 's/^gpu_mem=.*/gpu_mem=128/' "$CONFIG_FILE"
+            else
+                printf '\n# GPU-Speicher (Kiosk-Modus)\ngpu_mem=128\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
             fi
             # HDMI erzwingen (kein Blank-Screen wenn Monitor später angeschlossen wird)
             if ! grep -q "hdmi_force_hotplug" "$CONFIG_FILE"; then
@@ -1533,9 +1573,32 @@ PLYMSCRIPT
         sudo systemctl disable --now "$svc" 2>/dev/null || true
     done
     ok "Unnötige Dienste deaktiviert (Bluetooth, Avahi, apt-daily …)."
-    warn "apt-daily-Timer deaktiviert – Sicherheits-Updates bitte manuell einspielen (sudo apt-get upgrade)."
+    info "apt-daily-Timer deaktiviert – OS-Updates werden durch den wöchentlichen Cron-Job (Schritt G4) erledigt."
 
     ok "Raspberry Pi Optimierungen abgeschlossen."
+fi
+
+# ---------------------------------------------------------------------------
+# Schritt G4: Automatische wöchentliche Updates
+# ---------------------------------------------------------------------------
+step "Automatische wöchentliche Updates einrichten"
+
+# OS-Update: Sonntag 02:30 Uhr (root-Cron, da apt/dnf root benötigt)
+OS_UPDATE_CRON="30 2 * * 0 ${INSTALL_DIR}/os-update.sh"
+if ! sudo crontab -l 2>/dev/null | grep -qF "${INSTALL_DIR}/os-update.sh"; then
+    (sudo crontab -l 2>/dev/null; echo "${OS_UPDATE_CRON}") | sudo crontab -
+    ok "OS-Update Cron eingerichtet (Sonntag 02:30 Uhr)."
+else
+    info "OS-Update Cron bereits vorhanden."
+fi
+
+# Docker-Update: Sonntag 02:45 Uhr (läuft als SCRIPT_USER, daher im User-Cron)
+DOCKER_UPDATE_CRON="45 2 * * 0 ${INSTALL_DIR}/update.sh >> /var/log/alarm-system-docker-update.log 2>&1"
+if ! crontab -u "${SCRIPT_USER}" -l 2>/dev/null | grep -qF "${INSTALL_DIR}/update.sh"; then
+    (crontab -u "${SCRIPT_USER}" -l 2>/dev/null; echo "${DOCKER_UPDATE_CRON}") | crontab -u "${SCRIPT_USER}" -
+    ok "Docker-Update Cron eingerichtet (Sonntag 02:45 Uhr)."
+else
+    info "Docker-Update Cron bereits vorhanden."
 fi
 
 # ---------------------------------------------------------------------------
@@ -1634,17 +1697,22 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
 fi
 
 echo -e "  ${BOLD}Nützliche Befehle:${NC}"
-echo -e "    ${CYAN}${INSTALL_DIR}/status.sh${NC}    – Container-Status & Ressourcen"
-echo -e "    ${CYAN}${INSTALL_DIR}/logs.sh${NC}      – Live-Logs"
-echo -e "    ${CYAN}${INSTALL_DIR}/update.sh${NC}    – System aktualisieren"
-echo -e "    ${CYAN}${INSTALL_DIR}/backup.sh${NC}    – Backup erstellen"
+echo -e "    ${CYAN}${INSTALL_DIR}/status.sh${NC}      – Container-Status & Ressourcen"
+echo -e "    ${CYAN}${INSTALL_DIR}/logs.sh${NC}        – Live-Logs"
+echo -e "    ${CYAN}${INSTALL_DIR}/update.sh${NC}      – Docker Images manuell aktualisieren"
+echo -e "    ${CYAN}sudo ${INSTALL_DIR}/os-update.sh${NC} – OS-Pakete manuell aktualisieren"
+echo -e "    ${CYAN}${INSTALL_DIR}/backup.sh${NC}      – Backup erstellen"
 echo -e "    ${CYAN}cd ${INSTALL_DIR} && docker compose ps${NC}"
+echo -e "  ${BOLD}Automatische Updates (wöchentlich, Sonntag):${NC}"
+echo -e "    02:30 – OS-Update  (${INSTALL_DIR}/os-update.sh)"
+echo -e "    02:45 – Docker-Update  (${INSTALL_DIR}/update.sh)"
 echo ""
 
 if [[ "$INSTALL_KIOSK" == "true" ]]; then
     echo -e "  ${BOLD}Kiosk-Modus:${NC}"
     echo -e "    Neustart erforderlich für automatischen X-Start."
     echo -e "    ${CYAN}sudo reboot${NC}"
+    echo -e "    Wöchentlicher Neustart: Sonntag 03:00 Uhr (Cron)"
     echo ""
 fi
 
