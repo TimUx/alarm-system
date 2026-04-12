@@ -1436,7 +1436,7 @@ EOF
     ok "Kiosk-Services aktiviert (starten automatisch nach Neustart)."
 
     # -----------------------------------------------------------------------
-    # Nächtlicher Neustart (Sonntag 03:00 Uhr) – hält den Kiosk frisch
+    # Wöchentlicher Neustart (Sonntag 03:00 Uhr) – hält den Kiosk frisch
     # -----------------------------------------------------------------------
     # Alten täglichen Eintrag entfernen, falls vorhanden
     sudo crontab -l 2>/dev/null | grep -vF "0 3 * * * /sbin/reboot" | sudo crontab - 2>/dev/null || true
@@ -1566,8 +1566,8 @@ PLYMSCRIPT
 
     # Unnötige Dienste deaktivieren
     # Hinweis: apt-daily-Timer werden deaktiviert, damit unerwünschte Updates den Kiosk nicht
-    # unterbrechen. Sicherheits-Updates sollten stattdessen manuell oder per Wartungsfenster
-    # (z.B. nach dem nächtlichen Neustart) eingespielt werden.
+    # unterbrechen. OS-Updates werden stattdessen durch den wöchentlichen Cron-Job (Schritt G4)
+    # kontrolliert eingespielt (Sonntag 02:30 Uhr, vor dem wöchentlichen Neustart um 03:00 Uhr).
     for svc in bluetooth.service hciuart.service avahi-daemon.service triggerhappy.service \
                apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer; do
         sudo systemctl disable --now "$svc" 2>/dev/null || true
