@@ -1216,8 +1216,319 @@ EOF
     sudo systemctl daemon-reload
     sudo systemctl enable "getty@tty1.service" 2>/dev/null || true
 
+    # -----------------------------------------------------------------------
+    # watchdog.sh – überwacht Dienste-Gesundheit und Kiosk-Prozess
+    # -----------------------------------------------------------------------
+    WATCHDOG_SCRIPT="${INSTALL_DIR}/watchdog.sh"
+    cat > "${WATCHDOG_SCRIPT}" <<EOF
+#!/usr/bin/env bash
+# watchdog.sh – Überwacht Alarm-System-Dienste und den Kiosk-Browser
+
+MONITOR_URL="http://localhost:${ALARM_MONITOR_PORT:-8000}"
+CHECK_INTERVAL=30
+LOG_FILE="/var/log/alarm-system-watchdog.log"
+
+log() { echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >> "\$LOG_FILE"; }
+
+log "Watchdog gestartet"
+
+while true; do
+    # Docker-Dienste prüfen
+    if ! curl -sf --max-time 5 "\${MONITOR_URL}/health" > /dev/null 2>&1; then
+        log "WARNUNG: alarm-monitor nicht erreichbar – starte Docker-Dienste neu"
+        cd "${INSTALL_DIR}" && docker compose restart >> "\$LOG_FILE" 2>&1
+    fi
+
+    # X-Display prüfen (nur wenn kiosk läuft)
+    if command -v xdpyinfo >/dev/null 2>&1; then
+        if ! DISPLAY=:0 xdpyinfo > /dev/null 2>&1; then
+            log "WARNUNG: X-Display nicht aktiv – starte kiosk-watchdog-check"
+            systemctl --user restart kiosk.service 2>/dev/null || true
+        fi
+    fi
+
+    sleep "\$CHECK_INTERVAL"
+done
+EOF
+    chmod +x "${WATCHDOG_SCRIPT}"
+    ok "watchdog.sh erstellt."
+
+    # -----------------------------------------------------------------------
+    # kiosk.service – systemd-Unit für den Kiosk-Browser
+    # -----------------------------------------------------------------------
+    sudo tee /etc/systemd/system/kiosk.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Kiosk Browser
+After=network-online.target alarm-system.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SCRIPT_USER}
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=${HOME}/.Xauthority
+WorkingDirectory=${INSTALL_DIR}
+ExecStartPre=/bin/sleep 5
+ExecStart=${KIOSK_SCRIPT}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    ok "kiosk.service erstellt."
+
+    # -----------------------------------------------------------------------
+    # kiosk-watchdog.service
+    # -----------------------------------------------------------------------
+    sudo tee /etc/systemd/system/kiosk-watchdog.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Kiosk Watchdog
+After=kiosk.service alarm-system.service
+Requires=alarm-system.service
+
+[Service]
+Type=simple
+User=${SCRIPT_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=${WATCHDOG_SCRIPT}
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    ok "kiosk-watchdog.service erstellt."
+
+    # -----------------------------------------------------------------------
+    # alarm-sound.sh + alarm-sound.service (nur wenn alarm-monitor installiert)
+    # -----------------------------------------------------------------------
+    if [[ "$INSTALL_MONITOR" == "true" ]]; then
+        SOUND_DIR="${INSTALL_DIR}/sounds"
+        SOUND_FILE="${SOUND_DIR}/alarm.wav"
+        ALARM_SOUND_SCRIPT="${INSTALL_DIR}/alarm-sound.sh"
+        sudo mkdir -p "${SOUND_DIR}"
+        sudo chown "${SCRIPT_USER}:${SCRIPT_USER}" "${SOUND_DIR}"
+
+        cat > "${ALARM_SOUND_SCRIPT}" <<EOF
+#!/usr/bin/env bash
+# alarm-sound.sh – Überwacht neue Alarme und spielt Sound ab
+
+DASHBOARD_URL="http://localhost:${ALARM_MONITOR_PORT:-8000}"
+SOUND_FILE="${SOUND_FILE}"
+STATE_FILE="/tmp/last_alarm_id"
+CHECK_INTERVAL=10
+LOG_FILE="/var/log/alarm-sound.log"
+
+log() { echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >> "\$LOG_FILE"; }
+
+log "Alarm-Sound-Service gestartet"
+
+LAST_ID=\$(curl -sf "\${DASHBOARD_URL}/api/alarms/latest" 2>/dev/null | \\
+          python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',0))" 2>/dev/null || echo "0")
+echo "\$LAST_ID" > "\$STATE_FILE"
+log "Initialer letzter Alarm-ID: \$LAST_ID"
+
+while true; do
+    sleep "\$CHECK_INTERVAL"
+    LATEST=\$(curl -sf --max-time 5 "\${DASHBOARD_URL}/api/alarms/latest" 2>/dev/null)
+    [ -z "\$LATEST" ] && continue
+
+    CURRENT_ID=\$(echo "\$LATEST" | \\
+        python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',0))" 2>/dev/null || echo "0")
+    SAVED_ID=\$(cat "\$STATE_FILE" 2>/dev/null || echo "0")
+
+    if [ "\$CURRENT_ID" != "\$SAVED_ID" ] && [ "\$CURRENT_ID" -gt "\$SAVED_ID" ] 2>/dev/null; then
+        log "Neuer Alarm erkannt (ID: \$CURRENT_ID) – spiele Sound ab"
+        echo "\$CURRENT_ID" > "\$STATE_FILE"
+        for i in 1 2 3; do
+            aplay -q "\$SOUND_FILE" 2>/dev/null || sox "\$SOUND_FILE" -d 2>/dev/null || true
+            sleep 0.5
+        done
+    fi
+done
+EOF
+        chmod +x "${ALARM_SOUND_SCRIPT}"
+        ok "alarm-sound.sh erstellt."
+
+        # Test-Alarmton generieren
+        if [[ ! -f "${SOUND_FILE}" ]]; then
+            if command -v sox >/dev/null 2>&1; then
+                sox -n "${SOUND_FILE}" \
+                    synth 1 sine 880 synth 0.3 sine 1200 gain -3 2>/dev/null \
+                    && ok "Test-Alarm-Ton erstellt: ${SOUND_FILE}" \
+                    || warn "Test-Ton konnte nicht generiert werden."
+            else
+                warn "sox nicht verfügbar – alarm.wav bitte manuell unter ${SOUND_FILE} ablegen."
+            fi
+        else
+            info "alarm.wav bereits vorhanden – übersprungen."
+        fi
+
+        sudo tee /etc/systemd/system/alarm-sound.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Sound-Alert
+After=alarm-system.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=${SCRIPT_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=${ALARM_SOUND_SCRIPT}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+        ok "alarm-sound.service erstellt."
+    fi
+
+    # -----------------------------------------------------------------------
+    # Alle neuen Services aktivieren
+    # -----------------------------------------------------------------------
+    sudo systemctl daemon-reload
+    sudo systemctl enable kiosk.service kiosk-watchdog.service 2>/dev/null || true
+    [[ "$INSTALL_MONITOR" == "true" ]] && sudo systemctl enable alarm-sound.service 2>/dev/null || true
+    ok "Kiosk-Services aktiviert (starten automatisch nach Neustart)."
+
+    # -----------------------------------------------------------------------
+    # Nächtlicher Neustart (03:00 Uhr) – hält den Kiosk frisch
+    # -----------------------------------------------------------------------
+    if ! sudo crontab -l 2>/dev/null | grep -q "reboot"; then
+        (sudo crontab -l 2>/dev/null; echo "0 3 * * * /sbin/reboot") | sudo crontab -
+        ok "Cron-Job für täglichen Neustart um 03:00 Uhr eingerichtet."
+    else
+        info "Reboot-Cron bereits vorhanden."
+    fi
+
     ok "Kiosk-Modus konfiguriert."
     info "Beim nächsten Neustart startet ${KIOSK_BIN} automatisch → ${KIOSK_URL}"
+fi
+
+# ---------------------------------------------------------------------------
+# Schritt G2: alarm-system.service – Docker Compose automatisch starten
+# ---------------------------------------------------------------------------
+step "Systemd-Service alarm-system.service einrichten"
+
+sudo tee /etc/systemd/system/alarm-system.service > /dev/null <<EOF
+[Unit]
+Description=Alarm-System Docker Compose
+Documentation=https://github.com/TimUx/alarm-system
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=${SCRIPT_USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable alarm-system.service 2>/dev/null || true
+ok "alarm-system.service aktiviert (startet automatisch nach Neustart)."
+
+# ---------------------------------------------------------------------------
+# Schritt G3: Raspberry Pi Optimierungen
+# ---------------------------------------------------------------------------
+if [[ "$IS_RPI" == "true" ]]; then
+    step "Raspberry Pi Optimierungen"
+
+    # Plymouth Splashscreen (Debian/Raspberry Pi OS)
+    if [[ "$PKG_MGR" == "apt" ]]; then
+        eval "${PKG_INSTALL} plymouth plymouth-themes" 2>/dev/null || true
+        sudo mkdir -p /usr/share/plymouth/themes/alarm-system
+
+        sudo tee /usr/share/plymouth/themes/alarm-system/alarm-system.plymouth > /dev/null <<'PLYM'
+[Plymouth Theme]
+Name=Alarm-System
+Description=Alarm-System Ladebildschirm
+ModuleName=text
+
+[text]
+Title=Alarm-System lädt...
+SubTitle=Bitte warten...
+PLYM
+
+        sudo tee /usr/share/plymouth/themes/alarm-system/alarm-system.script > /dev/null <<'PLYMSCRIPT'
+Window.SetBackgroundTopColor(0.8, 0.1, 0.1);
+Window.SetBackgroundBottomColor(0.5, 0.0, 0.0);
+message_sprite = Sprite();
+message_sprite.SetPosition(Window.GetWidth()/2-200, Window.GetHeight()/2-20, 10000);
+my_image = Image.Text("Alarm-System lädt...", 1.0, 1.0, 1.0);
+message_sprite.SetImage(my_image);
+PLYMSCRIPT
+
+        sudo update-alternatives --install \
+            /usr/share/plymouth/themes/default.plymouth \
+            default.plymouth \
+            /usr/share/plymouth/themes/alarm-system/alarm-system.plymouth 100 2>/dev/null || true
+        sudo update-alternatives --set \
+            default.plymouth \
+            /usr/share/plymouth/themes/alarm-system/alarm-system.plymouth 2>/dev/null || true
+        sudo update-initramfs -u 2>/dev/null || warn "update-initramfs fehlgeschlagen – Plymouth ohne Wirkung bis zum nächsten Kernel-Update."
+        ok "Plymouth-Splashscreen eingerichtet."
+    fi
+
+    # Stille Boot-Parameter (/boot/firmware/cmdline.txt oder /boot/cmdline.txt)
+    for CMDLINE_FILE in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
+        if [[ -f "$CMDLINE_FILE" ]]; then
+            if ! grep -q "quiet splash" "$CMDLINE_FILE"; then
+                sudo sed -i 's/$/ quiet splash plymouth.ignore-serial-consoles logo.nologo vt.global_cursor_default=0/' "$CMDLINE_FILE"
+                ok "Stille Boot-Parameter gesetzt: ${CMDLINE_FILE}"
+            else
+                info "Boot-Parameter bereits vorhanden: ${CMDLINE_FILE}"
+            fi
+            break
+        fi
+    done
+
+    # config.txt Optimierungen
+    for CONFIG_FILE in /boot/firmware/config.txt /boot/config.txt; do
+        if [[ -f "$CONFIG_FILE" ]]; then
+            # GPU-Speicher auf Minimum (genug für Kiosk)
+            if ! grep -q "^gpu_mem=" "$CONFIG_FILE"; then
+                printf '\n# GPU-Speicher (Kiosk-Modus)\ngpu_mem=64\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
+            fi
+            # HDMI erzwingen (kein Blank-Screen wenn Monitor später angeschlossen wird)
+            if ! grep -q "hdmi_force_hotplug" "$CONFIG_FILE"; then
+                printf '\n# HDMI erzwingen\nhdmi_force_hotplug=1\nhdmi_group=1\nhdmi_mode=16\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
+            fi
+            # Bluetooth deaktivieren (reduziert Ressourcen/Störquellen)
+            if ! grep -q "disable-bt" "$CONFIG_FILE"; then
+                echo "dtoverlay=disable-bt" | sudo tee -a "$CONFIG_FILE" > /dev/null
+            fi
+            ok "Raspberry Pi config.txt optimiert: ${CONFIG_FILE}"
+            break
+        fi
+    done
+
+    # Unnötige Dienste deaktivieren
+    for svc in bluetooth.service hciuart.service avahi-daemon.service triggerhappy.service \
+               apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer; do
+        sudo systemctl disable --now "$svc" 2>/dev/null || true
+    done
+    ok "Unnötige Dienste deaktiviert (Bluetooth, Avahi, apt-daily …)."
+
+    ok "Raspberry Pi Optimierungen abgeschlossen."
 fi
 
 # ---------------------------------------------------------------------------
