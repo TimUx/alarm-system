@@ -493,6 +493,78 @@ esac
 ok "Basis-Pakete installiert."
 
 # ---------------------------------------------------------------------------
+# Schritt A2: Systemlokalisierung konfigurieren (Deutsch)
+# ---------------------------------------------------------------------------
+step "Systemlokalisierung konfigurieren (Sprache: Deutsch, Tastatur: de, Zeitzone: ${TZ})"
+
+case "$PKG_MGR" in
+    apt)
+        eval "${PKG_INSTALL} locales keyboard-configuration console-setup" 2>/dev/null || true
+        # Locale: de_DE.UTF-8 aktivieren
+        if ! grep -q "^de_DE.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null; then
+            sudo sed -i 's/^#\s*de_DE\.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen
+            # Falls sed nichts gefunden hat (Zeile fehlte), einfach anhängen
+            grep -q "^de_DE.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null \
+                || echo "de_DE.UTF-8 UTF-8" | sudo tee -a /etc/locale.gen > /dev/null
+        fi
+        sudo locale-gen de_DE.UTF-8 2>/dev/null || true
+        sudo update-locale LANG=de_DE.UTF-8 LC_ALL=de_DE.UTF-8 LANGUAGE=de_DE:de 2>/dev/null || true
+        # Tastatur-Layout auf Deutsch setzen
+        if [[ -f /etc/default/keyboard ]]; then
+            sudo sed -i 's/^XKBLAYOUT=.*/XKBLAYOUT="de"/' /etc/default/keyboard
+            sudo sed -i 's/^XKBVARIANT=.*/XKBVARIANT=""/' /etc/default/keyboard
+        else
+            printf 'XKBLAYOUT="de"\nXKBVARIANT=""\nXKBOPTIONS=""\n' \
+                | sudo tee /etc/default/keyboard > /dev/null
+        fi
+        sudo dpkg-reconfigure -f noninteractive keyboard-configuration 2>/dev/null || true
+        sudo setupcon 2>/dev/null || true
+        ;;
+    dnf|yum)
+        eval "${PKG_INSTALL} glibc-langpack-de" 2>/dev/null || true
+        sudo localectl set-locale LANG=de_DE.UTF-8 2>/dev/null || true
+        sudo localectl set-keymap de 2>/dev/null || true
+        sudo localectl set-x11-keymap de "" "" "" 2>/dev/null || true
+        ;;
+    pacman)
+        # Locale aktivieren
+        if ! grep -q "^de_DE.UTF-8 UTF-8" /etc/locale.gen 2>/dev/null; then
+            sudo sed -i 's/^#de_DE\.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen
+        fi
+        sudo locale-gen 2>/dev/null || true
+        echo 'LANG=de_DE.UTF-8' | sudo tee /etc/locale.conf > /dev/null
+        # Konsolen-Tastatur
+        if [[ -f /etc/vconsole.conf ]]; then
+            sudo sed -i 's/^KEYMAP=.*/KEYMAP=de-latin1/' /etc/vconsole.conf
+        else
+            echo 'KEYMAP=de-latin1' | sudo tee /etc/vconsole.conf > /dev/null
+        fi
+        sudo localectl set-x11-keymap de 2>/dev/null || true
+        ;;
+    zypper)
+        eval "${PKG_INSTALL} glibc-locale-de" 2>/dev/null || true
+        sudo localectl set-locale LANG=de_DE.UTF-8 2>/dev/null || true
+        sudo localectl set-keymap de 2>/dev/null || true
+        sudo localectl set-x11-keymap de "" "" "" 2>/dev/null || true
+        ;;
+    apk)
+        eval "${PKG_INSTALL} musl-locales musl-locales-lang" 2>/dev/null || true
+        if grep -q "^LANG=" /etc/environment 2>/dev/null; then
+            sudo sed -i 's/^LANG=.*/LANG=de_DE.UTF-8/' /etc/environment
+        else
+            echo 'LANG=de_DE.UTF-8' | sudo tee -a /etc/environment > /dev/null
+        fi
+        ;;
+esac
+
+# Zeitzone system-weit setzen (zusätzlich zur TZ-Umgebungsvariable in Docker)
+sudo timedatectl set-timezone "${TZ}" 2>/dev/null \
+    || sudo ln -sf "/usr/share/zoneinfo/${TZ}" /etc/localtime 2>/dev/null \
+    || true
+
+ok "Lokalisierung konfiguriert: de_DE.UTF-8 / Tastatur: de / Zeitzone: ${TZ}"
+
+# ---------------------------------------------------------------------------
 # Schritt B: Docker installieren
 # ---------------------------------------------------------------------------
 step "Docker installieren / prüfen"
@@ -1097,6 +1169,10 @@ EOF
     # Openbox-Autostart
     mkdir -p "${HOME}/.config/openbox"
     cat > "${HOME}/.config/openbox/autostart" <<EOF
+# Sprache und Tastaturlayout (Deutsch)
+export LANG=de_DE.UTF-8
+setxkbmap de &
+
 # Bildschirmschoner & DPMS deaktivieren
 xset s off &
 xset s noblank &
