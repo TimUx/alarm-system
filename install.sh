@@ -1501,10 +1501,41 @@ EOF
             if command -v sox >/dev/null 2>&1; then
                 sox -n "${SOUND_FILE}" \
                     synth 1 sine 880 synth 0.3 sine 1200 gain -3 2>/dev/null \
-                    && ok "Test-Alarm-Ton erstellt: ${SOUND_FILE}" \
+                    && ok "Test-Alarm-Ton erstellt (sox): ${SOUND_FILE}" \
                     || warn "Test-Ton konnte nicht generiert werden."
+            elif command -v ffmpeg >/dev/null 2>&1; then
+                ffmpeg -y -f lavfi \
+                    -i "sine=frequency=880:duration=1" \
+                    -ar 44100 -ac 1 "${SOUND_FILE}" \
+                    >/dev/null 2>&1 \
+                    && ok "Test-Alarm-Ton erstellt (ffmpeg): ${SOUND_FILE}" \
+                    || warn "ffmpeg: Test-Ton konnte nicht generiert werden."
+            elif command -v python3 >/dev/null 2>&1; then
+                python3 - "${SOUND_FILE}" <<'PYEOF'
+import sys, wave, math, array, struct
+out = sys.argv[1]
+rate = 44100
+freqs = [(880, 0.7), (1200, 0.3)]   # (Hz, Sekunden)
+samples = array.array('h')
+for freq, dur in freqs:
+    n = int(rate * dur)
+    samples.extend(
+        int(32767 * math.sin(2 * math.pi * freq * t / rate)) for t in range(n)
+    )
+with wave.open(out, 'w') as wf:
+    wf.setnchannels(1)
+    wf.setsampwidth(2)
+    wf.setframerate(rate)
+    wf.writeframes(samples.tobytes())
+PYEOF
+                # shellcheck disable=SC2181
+                if [[ $? -eq 0 ]]; then
+                    ok "Test-Alarm-Ton erstellt (python3): ${SOUND_FILE}"
+                else
+                    warn "python3: Test-Ton konnte nicht generiert werden."
+                fi
             else
-                warn "sox nicht verfügbar – alarm.wav bitte manuell unter ${SOUND_FILE} ablegen."
+                warn "Kein geeignetes Tool (sox, ffmpeg, python3) gefunden – alarm.wav bitte manuell unter ${SOUND_FILE} ablegen."
             fi
         else
             info "alarm.wav bereits vorhanden – übersprungen."
