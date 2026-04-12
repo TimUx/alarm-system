@@ -1308,6 +1308,10 @@ trap 'clear_browser_cache' EXIT
     --disable-restore-session-state \\
     --disable-component-update \\
     --autoplay-policy=no-user-gesture-required \\
+    --disable-hang-monitor \\
+    --disable-background-timer-throttling \\
+    --disable-renderer-backgrounding \\
+    --inhibit-sleep \\
     --user-data-dir="\${PROFILE_DIR}" \\
     "\${KIOSK_URL}"
 EOF
@@ -1358,6 +1362,44 @@ EOF
     sudo systemctl enable "getty@tty1.service" 2>/dev/null || true
 
     # -----------------------------------------------------------------------
+    # Konsolen-Blanking deaktivieren (Raspberry Pi & systemd-getty)
+    # Verhindert, dass der Framebuffer/Konsole vor X-Start in den Standby geht.
+    # -----------------------------------------------------------------------
+    for CMDLINE_TXT in /boot/firmware/cmdline.txt /boot/cmdline.txt; do
+        if [[ -f "${CMDLINE_TXT}" ]]; then
+            if ! grep -q "consoleblank=0" "${CMDLINE_TXT}" 2>/dev/null; then
+                sudo sed -i 's/$/ consoleblank=0/' "${CMDLINE_TXT}"
+                ok "consoleblank=0 zu ${CMDLINE_TXT} hinzugefügt (verhindert Konsolen-Standby)."
+            else
+                info "consoleblank=0 ist bereits in ${CMDLINE_TXT} gesetzt."
+            fi
+            break
+        fi
+    done
+
+    # -----------------------------------------------------------------------
+    # X11 Xorg-Konfiguration: DPMS & Screensaver dauerhaft deaktivieren
+    # Diese Einstellung gilt auf X-Server-Ebene und überschreibt xset-Aufrufe.
+    # -----------------------------------------------------------------------
+    sudo mkdir -p /etc/X11/xorg.conf.d
+    sudo tee /etc/X11/xorg.conf.d/10-noblank.conf > /dev/null <<'XORGEOF'
+# Bildschirmschoner und DPMS (Display Power Management) dauerhaft deaktivieren.
+# Verhindert, dass der Kiosk-Display in den Standby oder Screensaver-Modus wechselt.
+Section "ServerFlags"
+    Option "BlankTime"    "0"
+    Option "StandbyTime"  "0"
+    Option "SuspendTime"  "0"
+    Option "OffTime"      "0"
+EndSection
+
+Section "Monitor"
+    Identifier "Monitor0"
+    Option "DPMS" "false"
+EndSection
+XORGEOF
+    ok "/etc/X11/xorg.conf.d/10-noblank.conf erstellt (DPMS dauerhaft deaktiviert)."
+
+    # -----------------------------------------------------------------------
     # watchdog.sh – überwacht Dienste-Gesundheit und Kiosk-Prozess
     # -----------------------------------------------------------------------
     WATCHDOG_SCRIPT="${INSTALL_DIR}/watchdog.sh"
@@ -1385,6 +1427,11 @@ while true; do
         if ! DISPLAY=:0 xdpyinfo > /dev/null 2>&1; then
             log "WARNUNG: X-Display nicht aktiv – starte kiosk-watchdog-check"
             systemctl --user restart kiosk.service 2>/dev/null || true
+        else
+            # DPMS und Bildschirmschoner periodisch deaktivieren (verhindert Standby/Blanking)
+            DISPLAY=:0 XAUTHORITY="${HOME}/.Xauthority" xset s off 2>/dev/null || true
+            DISPLAY=:0 XAUTHORITY="${HOME}/.Xauthority" xset s noblank 2>/dev/null || true
+            DISPLAY=:0 XAUTHORITY="${HOME}/.Xauthority" xset -dpms 2>/dev/null || true
         fi
     fi
 
