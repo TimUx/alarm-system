@@ -159,6 +159,7 @@ save_state() {
         ALARM_MAIL_IMAP_USERNAME ALARM_MAIL_IMAP_PASSWORD
         ALARM_MAIL_IMAP_MAILBOX ALARM_MAIL_IMAP_SEARCH ALARM_MAIL_POLL_INTERVAL
         ALARM_MAIL_HTTP_TIMEOUT ALARM_MAIL_LOG_LEVEL ALARM_MAIL_DEDUP_TTL ALARM_MAIL_DEDUP_DB
+        ALARM_MAIL_TARGET_COUNT
     )
     {
         echo "# Alarm-System Install-Zustand – gespeichert am $(date '+%d.%m.%Y %H:%M:%S')"
@@ -166,6 +167,12 @@ save_state() {
         echo ""
         for _v in "${_vars[@]}"; do
             printf '%s=%q\n' "$_v" "${!_v:-}"
+        done
+        for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+            for _suffix in TYPE URL API_KEY GROUPS; do
+                _v="ALARM_MAIL_TARGET_${_i}_${_suffix}"
+                printf '%s=%q\n' "$_v" "${!_v:-}"
+            done
         done
     } > "${STATE_FILE}"
     chmod 600 "${STATE_FILE}"
@@ -258,6 +265,7 @@ ALARM_MAIL_HTTP_TIMEOUT="${ALARM_MAIL_HTTP_TIMEOUT:-}"
 ALARM_MAIL_LOG_LEVEL="${ALARM_MAIL_LOG_LEVEL:-}"
 ALARM_MAIL_DEDUP_TTL="${ALARM_MAIL_DEDUP_TTL:-}"
 ALARM_MAIL_DEDUP_DB="${ALARM_MAIL_DEDUP_DB:-}"
+ALARM_MAIL_TARGET_COUNT="${ALARM_MAIL_TARGET_COUNT:-0}"
 load_state
 
 # ---------------------------------------------------------------------------
@@ -271,7 +279,7 @@ echo -e "    ${CYAN}2)${NC} alarm-messenger – Push-Benachrichtigungen (Mobile 
 echo -e "    ${CYAN}3)${NC} alarm-mail      – IMAP-E-Mail-Parser (schickt Alarme weiter)"
 echo -e "    ${CYAN}4)${NC} Caddy           – Reverse Proxy mit automatischem HTTPS (optional)"
 echo ""
-info "alarm-mail benötigt mindestens einen der anderen Dienste als Ziel."
+info "alarm-mail benötigt mindestens ein Ziel (lokal installierter Dienst oder externer Endpunkt)."
 echo ""
 
 yes_no "alarm-monitor installieren?" "$(bool_to_yn "${INSTALL_MONITOR}")" && INSTALL_MONITOR=true || INSTALL_MONITOR=false
@@ -283,7 +291,7 @@ if [[ "$INSTALL_MONITOR" == "false" && "$INSTALL_MESSENGER" == "false" && "$INST
 fi
 
 if [[ "$INSTALL_MAIL" == "true" && "$INSTALL_MONITOR" == "false" && "$INSTALL_MESSENGER" == "false" ]]; then
-    die "alarm-mail benötigt alarm-monitor und/oder alarm-messenger als Ziel."
+    info "Keine lokalen Ziel-Dienste gewählt. Du wirst in Schritt 7 externe Ziele konfigurieren."
 fi
 
 yes_no "Caddy Reverse Proxy (HTTPS) konfigurieren?" "$(bool_to_yn "${INSTALL_CADDY}")" && INSTALL_CADDY=true || INSTALL_CADDY=false
@@ -435,6 +443,67 @@ if [[ "$INSTALL_MAIL" == "true" ]]; then
     prompt_optional ALARM_MAIL_LOG_LEVEL "Log-Level (DEBUG/INFO/WARNING/ERROR, optional, Standard: INFO)" "${ALARM_MAIL_LOG_LEVEL:-}"
     prompt_optional ALARM_MAIL_DEDUP_TTL "Deduplizierungs-TTL in Sekunden (optional, Standard: 300)" "${ALARM_MAIL_DEDUP_TTL:-}"
     prompt_optional ALARM_MAIL_DEDUP_DB "Pfad zur SQLite-Deduplizierungs-DB (optional)" "${ALARM_MAIL_DEDUP_DB:-}"
+
+    # --- Ziel-Konfiguration (Multitarget) ---
+    echo ""
+    step "alarm-mail Ziele konfigurieren"
+    info "alarm-mail kann Alarme an mehrere Ziele (alarm-monitor / alarm-messenger) weiterleiten."
+    info "Jedes Ziel kann optional auf bestimmte Alarmgruppen eingeschränkt werden."
+    echo ""
+
+    # Bei Erstkonfiguration: lokal installierte Dienste als Ziele vorbelegen
+    if [[ "${ALARM_MAIL_TARGET_COUNT:-0}" -eq 0 ]]; then
+        _t=0
+        if [[ "$INSTALL_MONITOR" == "true" ]]; then
+            _t=$((_t + 1))
+            printf -v "ALARM_MAIL_TARGET_${_t}_TYPE"    '%s' "alarm-monitor"
+            printf -v "ALARM_MAIL_TARGET_${_t}_URL"     '%s' "http://alarm-monitor:8000"
+            printf -v "ALARM_MAIL_TARGET_${_t}_API_KEY" '%s' "${ALARM_MONITOR_API_KEY:-}"
+            printf -v "ALARM_MAIL_TARGET_${_t}_GROUPS"  '%s' ""
+            info "Ziel ${_t} vorbelegt: alarm-monitor → http://alarm-monitor:8000"
+            _gvar="ALARM_MAIL_TARGET_${_t}_GROUPS"
+            prompt_optional "$_gvar" "Alarmgruppen-Filter für Ziel ${_t} (kommagetrennt, leer = alle)" "${!_gvar:-}"
+        fi
+        if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+            _t=$((_t + 1))
+            printf -v "ALARM_MAIL_TARGET_${_t}_TYPE"    '%s' "alarm-messenger"
+            printf -v "ALARM_MAIL_TARGET_${_t}_URL"     '%s' "http://alarm-messenger:3000"
+            printf -v "ALARM_MAIL_TARGET_${_t}_API_KEY" '%s' "${ALARM_MESSENGER_API_SECRET_KEY:-}"
+            printf -v "ALARM_MAIL_TARGET_${_t}_GROUPS"  '%s' ""
+            info "Ziel ${_t} vorbelegt: alarm-messenger → http://alarm-messenger:3000"
+            _gvar="ALARM_MAIL_TARGET_${_t}_GROUPS"
+            prompt_optional "$_gvar" "Alarmgruppen-Filter für Ziel ${_t} (kommagetrennt, leer = alle)" "${!_gvar:-}"
+        fi
+        ALARM_MAIL_TARGET_COUNT=$_t
+    else
+        info "Bereits konfigurierte Ziele:"
+        for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+            _tv="ALARM_MAIL_TARGET_${_i}_TYPE"; _uv="ALARM_MAIL_TARGET_${_i}_URL"
+            _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
+            _gdisp="${!_gv:-}"; [[ -n "$_gdisp" ]] && _gdisp=" (Gruppen: ${_gdisp})" || _gdisp=" (alle Gruppen)"
+            info "  Ziel ${_i}: ${!_tv} → ${!_uv}${_gdisp}"
+        done
+    fi
+
+    # Weitere (externe) Ziele hinzufügen
+    while yes_no "Weiteres Ziel hinzufügen?" "n"; do
+        ALARM_MAIL_TARGET_COUNT=$((ALARM_MAIL_TARGET_COUNT + 1))
+        _n=$ALARM_MAIL_TARGET_COUNT
+        echo ""
+        info "Neues Ziel ${_n}:"
+        _tv="ALARM_MAIL_TARGET_${_n}_TYPE"
+        _uv="ALARM_MAIL_TARGET_${_n}_URL"
+        _akv="ALARM_MAIL_TARGET_${_n}_API_KEY"
+        _gv="ALARM_MAIL_TARGET_${_n}_GROUPS"
+        prompt_optional "$_tv"  "Ziel-Typ (alarm-monitor/alarm-messenger)" "${!_tv:-alarm-monitor}"
+        prompt_value   "$_uv"  "Ziel-URL (z.B. https://monitor.example.com)" "${!_uv:-}" false
+        prompt_value   "$_akv" "API-Key" "${!_akv:-}" true
+        prompt_optional "$_gv"  "Alarmgruppen-Filter (kommagetrennt, leer = alle)" "${!_gv:-}"
+    done
+
+    if [[ "${ALARM_MAIL_TARGET_COUNT:-0}" -eq 0 ]]; then
+        die "alarm-mail benötigt mindestens ein Ziel."
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -717,6 +786,19 @@ ${ALARM_MAIL_DEDUP_TTL:+ALARM_MAIL_DEDUP_TTL=${ALARM_MAIL_DEDUP_TTL}}
 ${ALARM_MAIL_DEDUP_DB:+ALARM_MAIL_DEDUP_DB=${ALARM_MAIL_DEDUP_DB}}
 
 EOF
+    for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+        _tv="ALARM_MAIL_TARGET_${_i}_TYPE"
+        _uv="ALARM_MAIL_TARGET_${_i}_URL"
+        _akv="ALARM_MAIL_TARGET_${_i}_API_KEY"
+        _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
+        cat >> "${ENV_FILE}" <<EOF
+ALARM_MAIL_TARGET_${_i}_TYPE=${!_tv}
+ALARM_MAIL_TARGET_${_i}_URL=${!_uv}
+ALARM_MAIL_TARGET_${_i}_API_KEY=${!_akv}
+EOF
+        [[ -n "${!_gv:-}" ]] && echo "ALARM_MAIL_TARGET_${_i}_GROUPS=${!_gv}" >> "${ENV_FILE}"
+    done
+    echo "" >> "${ENV_FILE}"
 fi
 
 chmod 600 "${ENV_FILE}"
@@ -865,15 +947,19 @@ if [[ "$INSTALL_MAIL" == "true" ]]; then
       - TZ=${TZ:-Europe/Berlin}
 EOF
 
-    # Targets
-    [[ "$INSTALL_MONITOR" == "true" ]] && cat >> "${COMPOSE_FILE}" <<'EOF'
-      - ALARM_MAIL_ALARM_MONITOR_URL=http://alarm-monitor:8000
-      - ALARM_MAIL_ALARM_MONITOR_API_KEY=${ALARM_MONITOR_API_KEY}
+    # Multitarget-Umgebungsvariablen
+    for ((_i=1; _i<=ALARM_MAIL_TARGET_COUNT; _i++)); do
+        _tv="ALARM_MAIL_TARGET_${_i}_TYPE"
+        _uv="ALARM_MAIL_TARGET_${_i}_URL"
+        _akv="ALARM_MAIL_TARGET_${_i}_API_KEY"
+        _gv="ALARM_MAIL_TARGET_${_i}_GROUPS"
+        cat >> "${COMPOSE_FILE}" <<EOF
+      - ALARM_MAIL_TARGET_${_i}_TYPE=\${ALARM_MAIL_TARGET_${_i}_TYPE}
+      - ALARM_MAIL_TARGET_${_i}_URL=\${ALARM_MAIL_TARGET_${_i}_URL}
+      - ALARM_MAIL_TARGET_${_i}_API_KEY=\${ALARM_MAIL_TARGET_${_i}_API_KEY}
 EOF
-    [[ "$INSTALL_MESSENGER" == "true" ]] && cat >> "${COMPOSE_FILE}" <<'EOF'
-      - ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
-      - ALARM_MAIL_ALARM_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
-EOF
+        [[ -n "${!_gv:-}" ]] && echo "      - ALARM_MAIL_TARGET_${_i}_GROUPS=\${ALARM_MAIL_TARGET_${_i}_GROUPS}" >> "${COMPOSE_FILE}"
+    done
 
     cat >> "${COMPOSE_FILE}" <<'EOF'
     healthcheck:
@@ -884,18 +970,23 @@ EOF
       retries: 3
 EOF
 
-    echo "    depends_on:" >> "${COMPOSE_FILE}"
-    if [[ "$INSTALL_MONITOR" == "true" ]]; then
-        cat >> "${COMPOSE_FILE}" <<'EOF'
+    _has_depends=false
+    [[ "$INSTALL_MONITOR"   == "true" ]] && _has_depends=true
+    [[ "$INSTALL_MESSENGER" == "true" ]] && _has_depends=true
+    if [[ "$_has_depends" == "true" ]]; then
+        echo "    depends_on:" >> "${COMPOSE_FILE}"
+        if [[ "$INSTALL_MONITOR" == "true" ]]; then
+            cat >> "${COMPOSE_FILE}" <<'EOF'
       alarm-monitor:
         condition: service_healthy
 EOF
-    fi
-    if [[ "$INSTALL_MESSENGER" == "true" ]]; then
-        cat >> "${COMPOSE_FILE}" <<'EOF'
+        fi
+        if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+            cat >> "${COMPOSE_FILE}" <<'EOF'
       alarm-messenger:
         condition: service_healthy
 EOF
+        fi
     fi
 fi
 
