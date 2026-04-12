@@ -522,7 +522,7 @@ case "$PKG_MGR" in
         ;;
     dnf|yum)
         eval "${PKG_INSTALL} glibc-langpack-de" 2>/dev/null || true
-        sudo localectl set-locale LANG=de_DE.UTF-8 2>/dev/null || true
+        sudo localectl set-locale LANG=de_DE.UTF-8 LC_ALL=de_DE.UTF-8 LANGUAGE=de_DE:de 2>/dev/null || true
         sudo localectl set-keymap de 2>/dev/null || true
         sudo localectl set-x11-keymap de "" "" "" 2>/dev/null || true
         ;;
@@ -554,6 +554,8 @@ case "$PKG_MGR" in
         else
             echo 'LANG=de_DE.UTF-8' | sudo tee -a /etc/environment > /dev/null
         fi
+        # Tastatur-Layout (X11, falls vorhanden)
+        sudo localectl set-x11-keymap de 2>/dev/null || true
         ;;
 esac
 
@@ -1133,7 +1135,11 @@ PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 mkdir -p "\${PROFILE_DIR}/Default"
 chmod 700 "\${PROFILE_DIR}"
 cat > "\${PROFILE_DIR}/Default/Preferences" <<'PREF' 2>/dev/null || true
-{"profile":{"exit_type":"Normal","exited_cleanly":true},"translate":{"enabled":false},"translate_blocked_languages":["de"]}
+{
+  "profile": {"exit_type": "Normal", "exited_cleanly": true},
+  "translate": {"enabled": false},
+  "translate_blocked_languages": ["de"]
+}
 PREF
 
 # Cache beim Start leeren (stellt sicher, dass aktuelle App-Versionen geladen werden)
