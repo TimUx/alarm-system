@@ -467,6 +467,21 @@ ALARM_MONITOR_PORT=8080
 ALARM_MESSENGER_PORT=3030
 ```
 
+### Kiosk zeigt „Oh nein! … Fehlercode: 5“
+
+Bei Installation mit `install.sh` wird automatisch ein Kiosk-Watchdog eingerichtet, der diese Fälle abfängt:
+
+- Er erkennt Chromium-Fehlerseiten (z. B. `chrome-error://...`, `ERR_*`, „Fehlercode: 5“)
+- Versuch 1-2: automatisches Browser-Reload (`Ctrl+R`)
+- bei weiter bestehendem Fehler: Browser-Prozess wird beendet, `kiosk.service` startet ihn automatisch neu
+
+Status und Aktionen prüfen:
+
+```bash
+sudo journalctl -u kiosk-watchdog.service -f
+sudo tail -f /var/log/alarm-system-watchdog.log
+```
+
 ## Mobile App Setup
 
 Die Mobile App für iOS und Android befindet sich im [alarm-messenger Repository](https://github.com/TimUx/alarm-messenger/tree/main/mobile).
