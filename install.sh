@@ -1235,6 +1235,37 @@ else
 fi
 
 log "OS-Update abgeschlossen"
+
+# Docker-Engine explizit upgraden
+# Deckt sowohl get.docker.com (docker-ce) als auch Distro-Pakete (docker.io/docker) ab.
+# Für pacman/zypper/apk ist Docker durch die allgemeine Systemaktualisierung oben bereits abgedeckt.
+log "Docker-Engine upgraden"
+if command -v apt-get >/dev/null 2>&1; then
+    # Offizielle Docker CE Pakete zuerst versuchen; Fallback auf docker.io (Ubuntu/Debian)
+    if DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y \
+            docker-ce docker-ce-cli docker-ce-rootless-extras containerd.io \
+            docker-compose-plugin 2>/dev/null; then
+        log "Docker CE (offizielle Pakete) geprüft/aktualisiert"
+    else
+        DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y docker.io 2>/dev/null || true
+        log "Docker (Distro-Paket docker.io) geprüft/aktualisiert"
+    fi
+elif command -v dnf >/dev/null 2>&1; then
+    if dnf upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>/dev/null; then
+        log "Docker CE (offizielle Pakete) geprüft/aktualisiert"
+    else
+        dnf upgrade -y docker 2>/dev/null || true
+        log "Docker (Distro-Paket) geprüft/aktualisiert"
+    fi
+elif command -v yum >/dev/null 2>&1; then
+    if yum upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>/dev/null; then
+        log "Docker CE (offizielle Pakete) geprüft/aktualisiert"
+    else
+        yum upgrade -y docker 2>/dev/null || true
+        log "Docker (Distro-Paket) geprüft/aktualisiert"
+    fi
+fi
+log "Docker-Engine Upgrade abgeschlossen"
 EOF
 chmod +x "${INSTALL_DIR}/os-update.sh"
 
