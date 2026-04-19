@@ -1291,7 +1291,7 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
             fi
             ;;
         dnf|yum)
-            eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} google-noto-emoji-color-fonts google-noto-emoji-fonts" 2>/dev/null || \
                 eval "${PKG_INSTALL} google-noto-emoji-color-fonts" 2>/dev/null || true
@@ -1299,20 +1299,20 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
             command -v chromium >/dev/null 2>&1 && KIOSK_BIN="chromium"
             ;;
         pacman)
-            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} noto-fonts-emoji noto-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium"
             ;;
         zypper)
-            eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} google-noto-coloremoji-fonts google-noto-fonts" 2>/dev/null || \
                 eval "${PKG_INSTALL} google-noto-coloremoji-fonts" 2>/dev/null || true
             KIOSK_BIN="chromium"
             ;;
         apk)
-            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium"
+            eval "${PKG_INSTALL} xorg-server openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} font-noto-emoji font-noto" 2>/dev/null || \
                 eval "${PKG_INSTALL} font-noto-emoji" 2>/dev/null || true
@@ -1384,6 +1384,8 @@ trap 'clear_browser_cache' EXIT
     --disable-hang-monitor \\
     --disable-background-timer-throttling \\
     --disable-renderer-backgrounding \\
+    --remote-debugging-address=127.0.0.1 \\
+    --remote-debugging-port=9222 \\
     --inhibit-sleep \\
     --user-data-dir="\${PROFILE_DIR}" \\
     "\${KIOSK_URL}"
@@ -1483,10 +1485,48 @@ XORGEOF
 MONITOR_URL="http://localhost:${ALARM_MONITOR_PORT:-8000}"
 CHECK_INTERVAL=30
 LOG_FILE="/var/log/alarm-system-watchdog.log"
+DEBUG_JSON_URL="http://127.0.0.1:9222/json"
+ERROR_COUNT_FILE="/tmp/alarm-kiosk-error-count"
+MAX_RELOAD_ATTEMPTS=2
+PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 
 log() { echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >> "\$LOG_FILE"; }
 
 log "Watchdog gestartet"
+
+read_error_count() {
+    cat "\$ERROR_COUNT_FILE" 2>/dev/null || echo "0"
+}
+
+write_error_count() {
+    echo "\$1" > "\$ERROR_COUNT_FILE"
+}
+
+is_browser_error_page() {
+    local pages
+    pages=\$(curl -sf --max-time 3 "\$DEBUG_JSON_URL" 2>/dev/null || true)
+    [ -z "\$pages" ] && return 1
+    echo "\$pages" | grep -Eqi 'chrome-error://|ERR_|Fehlercode[^0-9]*[0-9]+|Aw, Snap|Oh nein'
+}
+
+reload_kiosk_browser() {
+    local win_id
+    command -v xdotool >/dev/null 2>&1 || return 1
+    win_id=\$(DISPLAY=:0 XAUTHORITY="\${HOME}/.Xauthority" xdotool search --onlyvisible --class 'chromium|Chromium|google-chrome|Google-chrome' 2>/dev/null | head -n1)
+    [ -n "\$win_id" ] || return 1
+    DISPLAY=:0 XAUTHORITY="\${HOME}/.Xauthority" xdotool windowactivate "\$win_id" key --clearmodifiers ctrl+r 2>/dev/null
+}
+
+restart_kiosk_browser() {
+    local killed_any="false"
+    log "AKTION: Browser-Prozess wird beendet (systemd startet kiosk.service automatisch neu)"
+    while read -r pid _; do
+        [ -n "\$pid" ] || continue
+        kill "\$pid" 2>/dev/null || true
+        killed_any="true"
+    done < <(pgrep -af 'chromium|chromium-browser|google-chrome' | grep -F -- "\$PROFILE_DIR" || true)
+    [ "\$killed_any" = "true" ] || log "INFO: Kein passender Kiosk-Browser-Prozess zum Beenden gefunden"
+}
 
 while true; do
     # Docker-Dienste prüfen
@@ -1498,13 +1538,36 @@ while true; do
     # X-Display prüfen (nur wenn kiosk läuft)
     if command -v xdpyinfo >/dev/null 2>&1; then
         if ! DISPLAY=:0 xdpyinfo > /dev/null 2>&1; then
-            log "WARNUNG: X-Display nicht aktiv – starte kiosk-watchdog-check"
-            systemctl --user restart kiosk.service 2>/dev/null || true
+            log "WARNUNG: X-Display nicht aktiv – Browser-Prozess wird zur Recovery beendet"
+            restart_kiosk_browser
         else
             # DPMS und Bildschirmschoner periodisch deaktivieren (verhindert Standby/Blanking)
             DISPLAY=:0 XAUTHORITY="${HOME}/.Xauthority" xset s off 2>/dev/null || true
             DISPLAY=:0 XAUTHORITY="${HOME}/.Xauthority" xset s noblank 2>/dev/null || true
             DISPLAY=:0 XAUTHORITY="${HOME}/.Xauthority" xset -dpms 2>/dev/null || true
+
+            # Browser-Fehlerseiten erkennen (z. B. "Fehlercode: 5")
+            if is_browser_error_page; then
+                ERROR_COUNT=\$(read_error_count)
+                ERROR_COUNT=\$((ERROR_COUNT + 1))
+                write_error_count "\$ERROR_COUNT"
+                log "WARNUNG: Browser-Fehlerseite erkannt (Versuch \$ERROR_COUNT/\$MAX_RELOAD_ATTEMPTS)"
+
+                if [ "\$ERROR_COUNT" -le "\$MAX_RELOAD_ATTEMPTS" ]; then
+                    if reload_kiosk_browser; then
+                        log "AKTION: Browser-Reload (Ctrl+R) ausgelöst"
+                    else
+                        log "WARNUNG: Reload nicht möglich – Browser wird stattdessen neu gestartet"
+                        restart_kiosk_browser
+                    fi
+                else
+                    log "WARNUNG: Fehler bleibt bestehen – Browser wird neu gestartet"
+                    restart_kiosk_browser
+                    write_error_count "0"
+                fi
+            else
+                write_error_count "0"
+            fi
         fi
     fi
 
