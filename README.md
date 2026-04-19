@@ -269,6 +269,22 @@ ALARM_MAIL_IMAP_PASSWORD=geheim
 ALARM_MAIL_POLL_INTERVAL=60  # Abrufintervall in Sekunden
 ```
 
+#### alarm-mail Ziele & Gruppenfilter
+Für Gruppenfilter müssen nummerierte `ALARM_MAIL_TARGET_*` Variablen verwendet werden:
+```bash
+ALARM_MAIL_TARGET_1_TYPE=alarm-monitor
+ALARM_MAIL_TARGET_1_URL=http://alarm-monitor:8000
+ALARM_MAIL_TARGET_1_API_KEY=<ALARM_MONITOR_API_KEY>
+# ALARM_MAIL_TARGET_1_GROUPS=WIL26,WIL41
+
+ALARM_MAIL_TARGET_2_TYPE=alarm-messenger
+ALARM_MAIL_TARGET_2_URL=http://alarm-messenger:3000
+ALARM_MAIL_TARGET_2_API_KEY=<ALARM_MESSENGER_API_SECRET_KEY>
+# ALARM_MAIL_TARGET_2_GROUPS=WIL26,WIL41
+```
+Nur Mails, die zum gesetzten Gruppenfilter des jeweiligen Ziels passen, werden an dieses Ziel weitergeleitet und als verarbeitet markiert.
+Die Legacy-Variablen `ALARM_MAIL_ALARM_MONITOR_*` / `ALARM_MAIL_ALARM_MESSENGER_*` unterstützen keinen Gruppenfilter.
+
 #### API-Schlüssel (Pflicht)
 ```bash
 # Generieren mit: openssl rand -hex 32

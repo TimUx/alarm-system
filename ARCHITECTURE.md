@@ -35,10 +35,14 @@ Das Alarm-System besteht aus drei Hauptkomponenten, die als Docker-Container bet
 ALARM_MAIL_IMAP_HOST
 ALARM_MAIL_IMAP_USERNAME
 ALARM_MAIL_IMAP_PASSWORD
-ALARM_MAIL_ALARM_MONITOR_URL=http://alarm-monitor:8000
-ALARM_MAIL_ALARM_MONITOR_API_KEY
-ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
-ALARM_MAIL_ALARM_MESSENGER_API_KEY
+ALARM_MAIL_TARGET_1_TYPE=alarm-monitor
+ALARM_MAIL_TARGET_1_URL=http://alarm-monitor:8000
+ALARM_MAIL_TARGET_1_API_KEY
+ALARM_MAIL_TARGET_1_GROUPS (optional)
+ALARM_MAIL_TARGET_2_TYPE=alarm-messenger
+ALARM_MAIL_TARGET_2_URL=http://alarm-messenger:3000
+ALARM_MAIL_TARGET_2_API_KEY
+ALARM_MAIL_TARGET_2_GROUPS (optional)
 ```
 
 **Hinweis:** alarm-mail läuft auf Port 8000 als Flask/Gunicorn-Anwendung mit `/health`, `/` und `/metrics` Endpunkten. Der Port wird nicht nach außen exponiert, da kein externer Zugriff benötigt wird. Der interne Health-Check (`curl http://localhost:8000/health`) wird von Docker verwendet.
