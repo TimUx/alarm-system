@@ -148,6 +148,8 @@ save_state() {
         ALARM_MONITOR_ORS_API_KEY ALARM_MONITOR_METRICS_TOKEN ALARM_MONITOR_HISTORY_FILE ALARM_MONITOR_SETTINGS_FILE
         ALARM_MONITOR_GRUPPEN ALARM_MONITOR_FIRE_DEPARTMENT_NAME
         ALARM_MONITOR_DEFAULT_LATITUDE ALARM_MONITOR_DEFAULT_LONGITUDE ALARM_MONITOR_DEFAULT_LOCATION_NAME
+        ALARM_MONITOR_CALENDAR_URLS
+        ALARM_MONITOR_NTFY_TOPIC_URL ALARM_MONITOR_NTFY_POLL_INTERVAL ALARM_MONITOR_MESSAGES_FILE ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS
         ALARM_MESSENGER_PORT ALARM_MESSENGER_ORGANIZATION_NAME ALARM_MESSENGER_API_SECRET_KEY
         ALARM_MESSENGER_JWT_SECRET ALARM_MESSENGER_SESSION_SECRET ALARM_MESSENGER_SERVER_URL
         ALARM_MESSENGER_CORS_ORIGINS ALARM_MESSENGER_DOMAIN
@@ -261,6 +263,11 @@ ALARM_MONITOR_FIRE_DEPARTMENT_NAME="${ALARM_MONITOR_FIRE_DEPARTMENT_NAME:-}"
 ALARM_MONITOR_DEFAULT_LATITUDE="${ALARM_MONITOR_DEFAULT_LATITUDE:-}"
 ALARM_MONITOR_DEFAULT_LONGITUDE="${ALARM_MONITOR_DEFAULT_LONGITUDE:-}"
 ALARM_MONITOR_DEFAULT_LOCATION_NAME="${ALARM_MONITOR_DEFAULT_LOCATION_NAME:-}"
+ALARM_MONITOR_CALENDAR_URLS="${ALARM_MONITOR_CALENDAR_URLS:-}"
+ALARM_MONITOR_NTFY_TOPIC_URL="${ALARM_MONITOR_NTFY_TOPIC_URL:-}"
+ALARM_MONITOR_NTFY_POLL_INTERVAL="${ALARM_MONITOR_NTFY_POLL_INTERVAL:-}"
+ALARM_MONITOR_MESSAGES_FILE="${ALARM_MONITOR_MESSAGES_FILE:-}"
+ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS="${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS:-}"
 ALARM_MAIL_HTTP_TIMEOUT="${ALARM_MAIL_HTTP_TIMEOUT:-}"
 ALARM_MAIL_LOG_LEVEL="${ALARM_MAIL_LOG_LEVEL:-}"
 ALARM_MAIL_DEDUP_TTL="${ALARM_MAIL_DEDUP_TTL:-}"
@@ -347,6 +354,35 @@ if [[ "$INSTALL_MONITOR" == "true" ]]; then
     prompt_optional ALARM_MONITOR_HISTORY_FILE "Pfad zur Alarm-Historie JSON-Datei (optional)" "${ALARM_MONITOR_HISTORY_FILE:-}"
     prompt_optional ALARM_MONITOR_SETTINGS_FILE "Pfad zur Einstellungs-JSON-Datei (optional)" "${ALARM_MONITOR_SETTINGS_FILE:-}"
     prompt_optional ALARM_MONITOR_GRUPPEN "Gruppen-Konfiguration (optional, kommagetrennt)" "${ALARM_MONITOR_GRUPPEN:-}"
+
+    if [[ -n "${ALARM_MONITOR_CALENDAR_URLS:-}" ]]; then
+        CALENDAR_ENABLED_DEFAULT="y"
+    else
+        CALENDAR_ENABLED_DEFAULT="n"
+    fi
+    if yes_no "Kalender-Integration nutzen?" "${CALENDAR_ENABLED_DEFAULT}"; then
+        prompt_optional ALARM_MONITOR_CALENDAR_URLS "Kalender-URLs (optional, komma- oder zeilengetrennt)" "${ALARM_MONITOR_CALENDAR_URLS:-}"
+    else
+        ALARM_MONITOR_CALENDAR_URLS=""
+    fi
+
+    if [[ -n "${ALARM_MONITOR_NTFY_TOPIC_URL:-}" || -n "${ALARM_MONITOR_NTFY_POLL_INTERVAL:-}" || -n "${ALARM_MONITOR_MESSAGES_FILE:-}" || -n "${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS:-}" ]]; then
+        NTFY_ENABLED_DEFAULT="y"
+    else
+        NTFY_ENABLED_DEFAULT="n"
+    fi
+    if yes_no "ntfy.sh Integration nutzen?" "${NTFY_ENABLED_DEFAULT}"; then
+        prompt_optional ALARM_MONITOR_NTFY_TOPIC_URL "ntfy Topic-URL (optional)" "${ALARM_MONITOR_NTFY_TOPIC_URL:-}"
+        prompt_optional ALARM_MONITOR_NTFY_POLL_INTERVAL "ntfy Abfrage-Intervall in Sekunden (optional)" "${ALARM_MONITOR_NTFY_POLL_INTERVAL:-}"
+        prompt_optional ALARM_MONITOR_MESSAGES_FILE "Pfad zur Nachrichten-Datei (optional)" "${ALARM_MONITOR_MESSAGES_FILE:-}"
+        prompt_optional ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS "Maximale Nachrichten-TTL in Stunden (optional)" "${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS:-}"
+    else
+        ALARM_MONITOR_NTFY_TOPIC_URL=""
+        ALARM_MONITOR_NTFY_POLL_INTERVAL=""
+        ALARM_MONITOR_MESSAGES_FILE=""
+        ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS=""
+    fi
+
     prompt_optional ALARM_MONITOR_FIRE_DEPARTMENT_NAME "Name der Feuerwehr / Wache (optional, kann auch im Web-Interface gesetzt werden)" "${ALARM_MONITOR_FIRE_DEPARTMENT_NAME:-}"
     prompt_optional ALARM_MONITOR_DEFAULT_LATITUDE "Standard-Breitengrad für Wetteranzeige (optional, z.B. 48.1374)" "${ALARM_MONITOR_DEFAULT_LATITUDE:-}"
     prompt_optional ALARM_MONITOR_DEFAULT_LONGITUDE "Standard-Längengrad für Wetteranzeige (optional, z.B. 11.5755)" "${ALARM_MONITOR_DEFAULT_LONGITUDE:-}"
@@ -724,6 +760,11 @@ ${ALARM_MONITOR_METRICS_TOKEN:+ALARM_MONITOR_METRICS_TOKEN=${ALARM_MONITOR_METRI
 ${ALARM_MONITOR_HISTORY_FILE:+ALARM_MONITOR_HISTORY_FILE=${ALARM_MONITOR_HISTORY_FILE}}
 ${ALARM_MONITOR_SETTINGS_FILE:+ALARM_MONITOR_SETTINGS_FILE=${ALARM_MONITOR_SETTINGS_FILE}}
 ${ALARM_MONITOR_GRUPPEN:+ALARM_MONITOR_GRUPPEN=${ALARM_MONITOR_GRUPPEN}}
+${ALARM_MONITOR_CALENDAR_URLS:+ALARM_MONITOR_CALENDAR_URLS=${ALARM_MONITOR_CALENDAR_URLS}}
+${ALARM_MONITOR_NTFY_TOPIC_URL:+ALARM_MONITOR_NTFY_TOPIC_URL=${ALARM_MONITOR_NTFY_TOPIC_URL}}
+${ALARM_MONITOR_NTFY_POLL_INTERVAL:+ALARM_MONITOR_NTFY_POLL_INTERVAL=${ALARM_MONITOR_NTFY_POLL_INTERVAL}}
+${ALARM_MONITOR_MESSAGES_FILE:+ALARM_MONITOR_MESSAGES_FILE=${ALARM_MONITOR_MESSAGES_FILE}}
+${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS:+ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS=${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS}}
 ${ALARM_MONITOR_FIRE_DEPARTMENT_NAME:+ALARM_MONITOR_FIRE_DEPARTMENT_NAME=${ALARM_MONITOR_FIRE_DEPARTMENT_NAME}}
 ${ALARM_MONITOR_DEFAULT_LATITUDE:+ALARM_MONITOR_DEFAULT_LATITUDE=${ALARM_MONITOR_DEFAULT_LATITUDE}}
 ${ALARM_MONITOR_DEFAULT_LONGITUDE:+ALARM_MONITOR_DEFAULT_LONGITUDE=${ALARM_MONITOR_DEFAULT_LONGITUDE}}
@@ -863,6 +904,11 @@ EOF
 
     # Optional parameters – only written to compose if configured
     [[ -n "${ALARM_MONITOR_GRUPPEN:-}" ]]               && echo "      - ALARM_DASHBOARD_GRUPPEN=\${ALARM_MONITOR_GRUPPEN}" >> "${COMPOSE_FILE}"
+    [[ -n "${ALARM_MONITOR_CALENDAR_URLS:-}" ]]         && echo "      - ALARM_DASHBOARD_CALENDAR_URLS=\${ALARM_MONITOR_CALENDAR_URLS}" >> "${COMPOSE_FILE}"
+    [[ -n "${ALARM_MONITOR_NTFY_TOPIC_URL:-}" ]]        && echo "      - ALARM_DASHBOARD_NTFY_TOPIC_URL=\${ALARM_MONITOR_NTFY_TOPIC_URL}" >> "${COMPOSE_FILE}"
+    [[ -n "${ALARM_MONITOR_NTFY_POLL_INTERVAL:-}" ]]    && echo "      - ALARM_DASHBOARD_NTFY_POLL_INTERVAL=\${ALARM_MONITOR_NTFY_POLL_INTERVAL}" >> "${COMPOSE_FILE}"
+    [[ -n "${ALARM_MONITOR_MESSAGES_FILE:-}" ]]         && echo "      - ALARM_DASHBOARD_MESSAGES_FILE=\${ALARM_MONITOR_MESSAGES_FILE}" >> "${COMPOSE_FILE}"
+    [[ -n "${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS:-}" ]] && echo "      - ALARM_DASHBOARD_MESSAGE_MAX_TTL_HOURS=\${ALARM_MONITOR_MESSAGE_MAX_TTL_HOURS}" >> "${COMPOSE_FILE}"
     [[ -n "${ALARM_MONITOR_FIRE_DEPARTMENT_NAME:-}" ]]  && echo "      - ALARM_DASHBOARD_FIRE_DEPARTMENT_NAME=\${ALARM_MONITOR_FIRE_DEPARTMENT_NAME}" >> "${COMPOSE_FILE}"
     [[ -n "${ALARM_MONITOR_DEFAULT_LATITUDE:-}" ]]      && echo "      - ALARM_DASHBOARD_DEFAULT_LATITUDE=\${ALARM_MONITOR_DEFAULT_LATITUDE}" >> "${COMPOSE_FILE}"
     [[ -n "${ALARM_MONITOR_DEFAULT_LONGITUDE:-}" ]]     && echo "      - ALARM_DASHBOARD_DEFAULT_LONGITUDE=\${ALARM_MONITOR_DEFAULT_LONGITUDE}" >> "${COMPOSE_FILE}"
@@ -1189,6 +1235,27 @@ else
 fi
 
 log "OS-Update abgeschlossen"
+
+# Docker-Engine explizit upgraden
+# Deckt sowohl get.docker.com (docker-ce) als auch Distro-Pakete (docker.io/docker) ab.
+# Für pacman/zypper/apk ist Docker durch die allgemeine Systemaktualisierung oben bereits abgedeckt.
+log "Docker-Engine upgraden"
+# --only-upgrade (apt): aktualisiert nur bereits installierte Pakete – keine Neu-Installationen.
+# Da docker-ce (get.docker.com) und docker.io (Distro) sich gegenseitig ausschließen, wird
+# jeweils nur das tatsächlich installierte Paket aktualisiert; das andere wird ignoriert.
+# || true stellt sicher, dass der Cron-Job nicht abbricht, falls kein Docker-Paket gefunden wird.
+if command -v apt-get >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y \
+        docker-ce docker-ce-cli docker-ce-rootless-extras containerd.io \
+        docker-compose-plugin docker.io 2>/dev/null || true
+elif command -v dnf >/dev/null 2>&1; then
+    dnf upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
+        docker 2>/dev/null || true
+elif command -v yum >/dev/null 2>&1; then
+    yum upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
+        docker 2>/dev/null || true
+fi
+log "Docker-Engine Upgrade abgeschlossen"
 EOF
 chmod +x "${INSTALL_DIR}/os-update.sh"
 
