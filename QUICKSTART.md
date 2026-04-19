@@ -47,13 +47,17 @@ chmod +x install.sh
 
 Das Skript führt Sie interaktiv durch folgende Schritte:
 
-1. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
+1. **Systemerkennung** – Architektur und Linux-Distribution werden automatisch erkannt
+2. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
    (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
-2. **Kiosk-Modus** – Soll ein Browser im Vollbild-Kiosk-Modus eingerichtet werden?
-3. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+3. **Kiosk-Modus** – Soll ein Browser im Vollbild-Kiosk-Modus eingerichtet werden?
+4. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
    *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
-4. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet.
-5. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt.
+5. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
+6. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
+7. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+
+Zusätzlich werden Eingaben in `~/.alarm-system-install.conf` gespeichert und beim nächsten Lauf als Standardwerte verwendet.
 
 Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
 
@@ -63,11 +67,22 @@ Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
 ├── docker-compose.yml   # Generierte Compose-Datei
 ├── caddy/Caddyfile      # Reverse-Proxy-Konfiguration (optional)
 ├── update.sh            # System aktualisieren
+├── os-update.sh         # Betriebssystem-Pakete aktualisieren
 ├── backup.sh            # Daten sichern
 ├── status.sh            # Container-Status anzeigen
 ├── logs.sh              # Live-Logs
-└── kiosk.sh             # Kiosk-Browser starten (optional)
+├── kiosk.sh             # Kiosk-Browser starten (optional)
+├── watchdog.sh          # Kiosk-/Service-Watchdog (optional)
+├── alarm-sound.sh       # Sound-Benachrichtigung bei neuen Alarmen (optional)
+└── sounds/alarm.wav     # Beispiel-Alarmton (optional)
 ```
+
+> **Wichtig:** Bei erneutem Ausführen von `install.sh` werden `.env` und `docker-compose.yml` im gewählten Installationsverzeichnis (standardmäßig `/opt/alarm-system`) neu generiert (überschrieben). Vorherige Anpassungen deshalb vorher sichern.
+
+Automatisch eingerichtet durch den Installer:
+- `alarm-system.service` (Docker-Compose Autostart beim Boot)
+- wöchentliche Updates per Cron (Sonntag 02:30 OS, 02:45 Docker)
+- im Kiosk-Modus zusätzlich `kiosk.service`, `kiosk-watchdog.service` und (mit Monitor) `alarm-sound.service`
 
 ---
 
