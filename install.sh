@@ -1829,15 +1829,24 @@ PLYM
 Window.SetBackgroundTopColor(0.8, 0.1, 0.1);
 Window.SetBackgroundBottomColor(0.5, 0.0, 0.0);
 
+title_scale = 3.0;
+subtitle_scale = 2.0;
+title_y_offset = 90;
+subtitle_y_offset = 30;
+
 title_image = Image.Text("Alarm-System lädt...", 1.0, 1.0, 1.0);
 title_sprite = Sprite();
 title_sprite.SetImage(title_image);
-title_sprite.SetPosition(Window.GetWidth()/2 - title_image.GetWidth()/2, Window.GetHeight()/2 - 30, 10000);
+title_sprite.SetXScale(title_scale);
+title_sprite.SetYScale(title_scale);
+title_sprite.SetPosition(Window.GetWidth()/2 - (title_image.GetWidth() * title_scale)/2, Window.GetHeight()/2 - title_y_offset, 10000);
 
 subtitle_image = Image.Text("Bitte warten...", 0.8, 0.8, 0.8);
 subtitle_sprite = Sprite();
 subtitle_sprite.SetImage(subtitle_image);
-subtitle_sprite.SetPosition(Window.GetWidth()/2 - subtitle_image.GetWidth()/2, Window.GetHeight()/2 + 10, 10000);
+subtitle_sprite.SetXScale(subtitle_scale);
+subtitle_sprite.SetYScale(subtitle_scale);
+subtitle_sprite.SetPosition(Window.GetWidth()/2 - (subtitle_image.GetWidth() * subtitle_scale)/2, Window.GetHeight()/2 + subtitle_y_offset, 10000);
 PLYMSCRIPT
 
         sudo update-alternatives --install \
