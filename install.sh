@@ -1829,24 +1829,37 @@ PLYM
 Window.SetBackgroundTopColor(0.8, 0.1, 0.1);
 Window.SetBackgroundBottomColor(0.5, 0.0, 0.0);
 
-title_scale = 3.0;
-subtitle_scale = 2.0;
-title_y_offset = 90;
-subtitle_y_offset = 30;
+title_scale = 5.6;
+subtitle_scale = 3.2;
+line_gap = 36;
 
 title_image = Image.Text("Alarm-System lädt...", 1.0, 1.0, 1.0);
 title_sprite = Sprite();
 title_sprite.SetImage(title_image);
 title_sprite.SetXScale(title_scale);
 title_sprite.SetYScale(title_scale);
-title_sprite.SetPosition(Window.GetWidth()/2 - (title_image.GetWidth() * title_scale)/2, Window.GetHeight()/2 - title_y_offset, 10000);
 
 subtitle_image = Image.Text("Bitte warten...", 0.8, 0.8, 0.8);
 subtitle_sprite = Sprite();
 subtitle_sprite.SetImage(subtitle_image);
 subtitle_sprite.SetXScale(subtitle_scale);
 subtitle_sprite.SetYScale(subtitle_scale);
-subtitle_sprite.SetPosition(Window.GetWidth()/2 - (subtitle_image.GetWidth() * subtitle_scale)/2, Window.GetHeight()/2 + subtitle_y_offset, 10000);
+
+title_w = title_image.GetWidth() * title_scale;
+title_h = title_image.GetHeight() * title_scale;
+subtitle_w = subtitle_image.GetWidth() * subtitle_scale;
+subtitle_h = subtitle_image.GetHeight() * subtitle_scale;
+
+block_h = title_h + line_gap + subtitle_h;
+block_top = (Window.GetHeight() - block_h) / 2;
+
+title_x = (Window.GetWidth() - title_w) / 2;
+title_y = block_top;
+subtitle_x = (Window.GetWidth() - subtitle_w) / 2;
+subtitle_y = block_top + title_h + line_gap;
+
+title_sprite.SetPosition(title_x, title_y, 10000);
+subtitle_sprite.SetPosition(subtitle_x, subtitle_y, 10000);
 PLYMSCRIPT
 
         sudo update-alternatives --install \
