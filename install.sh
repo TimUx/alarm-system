@@ -1825,7 +1825,7 @@ ImageDir=/usr/share/plymouth/themes/alarm-system
 ScriptFile=/usr/share/plymouth/themes/alarm-system/alarm-system.script
 PLYM
 
-        # Wappen-Bild (crest.png) aus eingebettetem Base64 ins Theme-Verzeichnis schreiben
+        # Wappen-Bild (crest.png) aus eingebettetem Base64 ins Theme-Verzeichnis dekodieren
         base64 -d <<'CRESTB64' | sudo tee /usr/share/plymouth/themes/alarm-system/crest.png > /dev/null
 iVBORw0KGgoAAAANSUhEUgAAAJYAAACWCAYAAAA8AXHiAAAgAElEQVR4Xu2dB3wVVfbHb15JoYUe
 iqgIWFZRFHuvG1Zdwd6xY1dsK7Yl7FpAXcWyFtYVXbui4tqCuoquXUDEgg1BQCDUhJaXV//nO3kn
@@ -2157,7 +2157,7 @@ lmnd1On/AVRRD/7ZCMBZAAAAAElFTkSuQmCC
 CRESTB64
 
         sudo tee /usr/share/plymouth/themes/alarm-system/alarm-system.script > /dev/null <<'PLYMSCRIPT'
-# Hintergrundfarben passend zum Feuerwehr-Wappen (Dunkelrot → fast Schwarz)
+# Hintergrundfarben passend zum Feuerwehr-Wappen (oben Dunkelrot, unten fast Schwarz)
 Window.SetBackgroundTopColor(0.55, 0.05, 0.05);
 Window.SetBackgroundBottomColor(0.18, 0.02, 0.02);
 
