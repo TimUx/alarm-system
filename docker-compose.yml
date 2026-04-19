@@ -32,19 +32,18 @@ services:
       - ALARM_MAIL_IMAP_SEARCH=${ALARM_MAIL_IMAP_SEARCH:-UNSEEN}
       - ALARM_MAIL_POLL_INTERVAL=${ALARM_MAIL_POLL_INTERVAL:-60}
       
-      # Alarm Monitor Target (Internal communication)
-      - ALARM_MAIL_ALARM_MONITOR_URL=http://alarm-monitor:8000
-      - ALARM_MAIL_ALARM_MONITOR_API_KEY=${ALARM_MONITOR_API_KEY}
-      
-      # Alarm Messenger Target (Internal communication)
-      - ALARM_MAIL_ALARM_MESSENGER_URL=http://alarm-messenger:3000
-      - ALARM_MAIL_ALARM_MESSENGER_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
+      # Alarm Targets (numbered TARGET_* variables; supports per-target group filters)
+      - ALARM_MAIL_TARGET_1_TYPE=alarm-monitor
+      - ALARM_MAIL_TARGET_1_URL=http://alarm-monitor:8000
+      - ALARM_MAIL_TARGET_1_API_KEY=${ALARM_MONITOR_API_KEY}
+      # - ALARM_MAIL_TARGET_1_GROUPS=${ALARM_MAIL_TARGET_1_GROUPS:-}
+      - ALARM_MAIL_TARGET_2_TYPE=alarm-messenger
+      - ALARM_MAIL_TARGET_2_URL=http://alarm-messenger:3000
+      - ALARM_MAIL_TARGET_2_API_KEY=${ALARM_MESSENGER_API_SECRET_KEY}
+      # - ALARM_MAIL_TARGET_2_GROUPS=${ALARM_MAIL_TARGET_2_GROUPS:-}
       
       # Optional: HTTP request settings
       # - ALARM_MAIL_HTTP_TIMEOUT=${ALARM_MAIL_HTTP_TIMEOUT:-10}
-      # - ALARM_MAIL_ALARM_MONITOR_VERIFY_SSL=${ALARM_MAIL_ALARM_MONITOR_VERIFY_SSL:-true}
-      # - ALARM_MAIL_ALARM_MESSENGER_VERIFY_SSL=${ALARM_MAIL_ALARM_MESSENGER_VERIFY_SSL:-true}
-      
       # Optional: Deduplication TTL in seconds (default: 300)
       # - ALARM_MAIL_DEDUP_TTL=${ALARM_MAIL_DEDUP_TTL:-300}
       
