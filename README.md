@@ -125,8 +125,11 @@ Das Skript führt Sie interaktiv durch folgende Schritte:
 3. **Kiosk-Modus** – Optional: Browser im Vollbild-Kiosk-Modus einrichten (z. B. für Raspberry Pi)
 4. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
    *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
-5. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
-6. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+5. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
+6. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
+7. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+
+Außerdem speichert das Skript Eingaben in `~/.alarm-system-install.conf` und verwendet sie bei späteren Läufen als Standardwerte.
 
 Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
 
@@ -140,8 +143,18 @@ Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
 ├── status.sh            # Container-Status anzeigen
 ├── logs.sh              # Live-Logs
 ├── os-update.sh         # Betriebssystem-Pakete aktualisieren
-└── kiosk.sh             # Kiosk-Browser starten (optional)
+├── kiosk.sh             # Kiosk-Browser starten (optional)
+├── watchdog.sh          # Kiosk-/Service-Watchdog (optional)
+├── alarm-sound.sh       # Sound-Benachrichtigung bei neuen Alarmen (optional)
+└── sounds/alarm.wav     # Beispiel-Alarmton (optional)
 ```
+
+> **Wichtig:** Bei erneutem Ausführen von `install.sh` werden `.env` und `docker-compose.yml` im gewählten Installationsverzeichnis (standardmäßig `/opt/alarm-system`) neu generiert (überschrieben). Vorherige Anpassungen deshalb vorher sichern.
+
+Automatisch eingerichtet durch den Installer:
+- `alarm-system.service` (Docker-Compose Autostart beim Boot)
+- wöchentliche Updates per Cron (Sonntag 02:30 OS, 02:45 Docker)
+- im Kiosk-Modus zusätzlich `kiosk.service`, `kiosk-watchdog.service` und (mit Monitor) `alarm-sound.service`
 
 > **Tipp:** Eine ausführlichere Schritt-für-Schritt-Anleitung (inkl. manuelle Installation) finden Sie in [QUICKSTART.md](QUICKSTART.md).
 
@@ -328,6 +341,8 @@ Das Skript installiert Docker, fragt alle Konfigurationswerte interaktiv ab, gen
 ./logs.sh        # Live-Logs aller Dienste
 ./os-update.sh   # Betriebssystem-Pakete aktualisieren (auch per Cron)
 ./kiosk.sh       # Kiosk-Browser starten (nur wenn Kiosk-Modus aktiviert)
+./watchdog.sh    # Kiosk-/Health-Watchdog (nur wenn Kiosk-Modus aktiviert)
+./alarm-sound.sh # Alarmton bei neuen Einsätzen (nur mit Kiosk + monitor)
 ```
 
 **Makefile-Befehle** (bei manueller Installation):
