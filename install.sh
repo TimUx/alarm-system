@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+
+# Sicherstellen, dass das Skript immer mit Bash läuft (auch bei Aufruf via `sh install.sh`)
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /usr/bin/env bash "$0" "$@"
+fi
+
 # =============================================================================
 # install.sh – Alarm-System: Vollautomatisches 1-Click Installationsskript
 #
