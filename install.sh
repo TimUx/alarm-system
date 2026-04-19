@@ -1240,30 +1240,18 @@ log "OS-Update abgeschlossen"
 # Deckt sowohl get.docker.com (docker-ce) als auch Distro-Pakete (docker.io/docker) ab.
 # Für pacman/zypper/apk ist Docker durch die allgemeine Systemaktualisierung oben bereits abgedeckt.
 log "Docker-Engine upgraden"
+# --only-upgrade (apt) upgradet nur bereits installierte Pakete, keine Neu-Installationen.
+# || true stellt sicher, dass der Cron-Job nicht abbricht, falls kein Docker-Paket gefunden wird.
 if command -v apt-get >/dev/null 2>&1; then
-    # Offizielle Docker CE Pakete zuerst versuchen; Fallback auf docker.io (Ubuntu/Debian)
-    if DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y \
-            docker-ce docker-ce-cli docker-ce-rootless-extras containerd.io \
-            docker-compose-plugin 2>/dev/null; then
-        log "Docker CE (offizielle Pakete) geprüft/aktualisiert"
-    else
-        DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y docker.io 2>/dev/null || true
-        log "Docker (Distro-Paket docker.io) geprüft/aktualisiert"
-    fi
+    DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y \
+        docker-ce docker-ce-cli docker-ce-rootless-extras containerd.io \
+        docker-compose-plugin docker.io 2>/dev/null || true
 elif command -v dnf >/dev/null 2>&1; then
-    if dnf upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>/dev/null; then
-        log "Docker CE (offizielle Pakete) geprüft/aktualisiert"
-    else
-        dnf upgrade -y docker 2>/dev/null || true
-        log "Docker (Distro-Paket) geprüft/aktualisiert"
-    fi
+    dnf upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
+        docker 2>/dev/null || true
 elif command -v yum >/dev/null 2>&1; then
-    if yum upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin 2>/dev/null; then
-        log "Docker CE (offizielle Pakete) geprüft/aktualisiert"
-    else
-        yum upgrade -y docker 2>/dev/null || true
-        log "Docker (Distro-Paket) geprüft/aktualisiert"
-    fi
+    yum upgrade -y docker-ce docker-ce-cli containerd.io docker-compose-plugin \
+        docker 2>/dev/null || true
 fi
 log "Docker-Engine Upgrade abgeschlossen"
 EOF
