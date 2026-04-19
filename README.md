@@ -467,7 +467,7 @@ ALARM_MONITOR_PORT=8080
 ALARM_MESSENGER_PORT=3030
 ```
 
-### Kiosk zeigt „Oh nein! … Fehlercode: 5“
+### Kiosk zeigt Fehlerseiten
 
 Bei Installation mit `install.sh` wird automatisch ein Kiosk-Watchdog eingerichtet, der diese Fälle abfängt:
 

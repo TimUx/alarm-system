@@ -1488,6 +1488,7 @@ LOG_FILE="/var/log/alarm-system-watchdog.log"
 DEBUG_JSON_URL="http://127.0.0.1:9222/json"
 ERROR_COUNT_FILE="/tmp/alarm-kiosk-error-count"
 MAX_RELOAD_ATTEMPTS=2
+PROFILE_DIR="\${XDG_RUNTIME_DIR:-\${HOME}/.cache}/kiosk-profile"
 
 log() { echo "[\$(date '+%Y-%m-%d %H:%M:%S')] \$*" >> "\$LOG_FILE"; }
 
@@ -1505,7 +1506,7 @@ is_browser_error_page() {
     local pages
     pages=\$(curl -sf --max-time 3 "\$DEBUG_JSON_URL" 2>/dev/null || true)
     [ -z "\$pages" ] && return 1
-    echo "\$pages" | grep -Eqi 'chrome-error://|ERR_|Fehlercode[^0-9]*5|Aw, Snap|Oh nein'
+    echo "\$pages" | grep -Eqi 'chrome-error://|ERR_|Fehlercode[^0-9]*[0-9]+|Aw, Snap|Oh nein'
 }
 
 reload_kiosk_browser() {
@@ -1517,8 +1518,14 @@ reload_kiosk_browser() {
 }
 
 restart_kiosk_browser() {
+    local killed_any="false"
     log "AKTION: Browser-Prozess wird beendet (systemd startet kiosk.service automatisch neu)"
-    pkill -f "kiosk-profile" 2>/dev/null || true
+    while read -r pid _; do
+        [ -n "\$pid" ] || continue
+        kill "\$pid" 2>/dev/null || true
+        killed_any="true"
+    done < <(pgrep -af 'chromium|chromium-browser|google-chrome' | grep -F -- "\$PROFILE_DIR" || true)
+    [ "\$killed_any" = "true" ] || log "INFO: Kein passender Kiosk-Browser-Prozess zum Beenden gefunden"
 }
 
 while true; do
