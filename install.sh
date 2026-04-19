@@ -1240,7 +1240,9 @@ log "OS-Update abgeschlossen"
 # Deckt sowohl get.docker.com (docker-ce) als auch Distro-Pakete (docker.io/docker) ab.
 # Für pacman/zypper/apk ist Docker durch die allgemeine Systemaktualisierung oben bereits abgedeckt.
 log "Docker-Engine upgraden"
-# --only-upgrade (apt) upgradet nur bereits installierte Pakete, keine Neu-Installationen.
+# --only-upgrade (apt): aktualisiert nur bereits installierte Pakete – keine Neu-Installationen.
+# Da docker-ce (get.docker.com) und docker.io (Distro) sich gegenseitig ausschließen, wird
+# jeweils nur das tatsächlich installierte Paket aktualisiert; das andere wird ignoriert.
 # || true stellt sicher, dass der Cron-Job nicht abbricht, falls kein Docker-Paket gefunden wird.
 if command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y \
