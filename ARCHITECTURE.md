@@ -68,16 +68,31 @@ ALARM_MAIL_TARGET_2_GROUPS (optional)
 
 **Wichtige Umgebungsvariablen:**
 ```
-ALARM_DASHBOARD_API_KEY
-ALARM_DASHBOARD_MESSENGER_SERVER_URL=http://alarm-messenger:3000
-ALARM_DASHBOARD_MESSENGER_API_KEY
+ALARM_MONITOR_API_KEY
+ALARM_MONITOR_SETTINGS_PASSWORD
+ALARM_MONITOR_DISPLAY_DURATION_MINUTES=30
+ALARM_MONITOR_MESSENGER_SERVER_URL=http://alarm-messenger:3000
+ALARM_MONITOR_MESSENGER_API_KEY
+ALARM_MONITOR_SHOW_LAST_ALARM=true
+ALARM_MONITOR_WARNINGS_MIN_LEVEL=3
+ALARM_MONITOR_CALENDAR_URLS          # optional: iCal-URLs für Ruhezustand
+ALARM_MONITOR_NTFY_TOPIC_URL          # optional: ntfy.sh Dashboard-Nachrichten
 ```
+
+**Neue Features (alarm-monitor v1.2+):**
+- DWD-Unwetterwarnungen im Ruhezustand (automatisch, konfigurierbare Mindest-Warnstufe)
+- iCal-Kalender-Integration im Ruhezustand
+- ntfy.sh Dashboard-Nachrichten
+- Konfigurierbares Idle-Layout (letzter Einsatz ein-/ausblenden)
+- Python-Paket umbenannt: `alarm_monitor` (Legacy-Präfix `ALARM_DASHBOARD_` wird weiterhin als Fallback gelesen)
 
 **API-Endpunkte:**
 - `POST /api/alarm` - Alarm empfangen (mit X-API-Key Header)
-- `GET /api/alarm` - Aktuellen Alarm abrufen
+- `GET /api/alarm` - Aktuellen Alarm abrufen (inkl. DWD-Warnungen im Idle-Modus)
 - `GET /api/stream` - Server-Sent Events (SSE) für Echtzeit-Updates
 - `GET /api/history` - Alarm-Historie abrufen (Response: `{"history": [...]}`)
+- `GET /api/calendar` - Kalendertermine für Ruhezustand
+- `GET /api/messages` / `POST /api/messages` - Dashboard-Nachrichten
 - `GET /api/alarm/participants/<incident_number>` - Teilnehmer eines Einsatzes
 - `GET /api/settings` - Aktuelle Einstellungen abrufen
 - `POST /api/settings` - Einstellungen aktualisieren (mit X-Settings-Password + X-CSRF-Token)

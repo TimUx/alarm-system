@@ -182,7 +182,7 @@ All communication patterns have been verified against the source repositories:
 ### alarm-mail → alarm-monitor
 - **Endpoint**: POST `/api/alarm`
 - **Auth**: X-API-Key header
-- **Verified**: ✅ alarm-monitor/alarm_dashboard/app.py line 143
+- **Verified**: ✅ alarm-monitor/alarm_monitor/routes/api.py
 
 ### alarm-mail → alarm-messenger
 - **Endpoint**: POST `/api/emergencies`
