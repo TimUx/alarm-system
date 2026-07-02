@@ -84,7 +84,7 @@ ALARM_MONITOR_CEC_DEVICE              # optional: Linux-Gerät (Standard: /dev/c
 
 **HDMI-CEC (optional, ab alarm-monitor v1.3+):**
 
-Der Installer (`install.sh`) kann Host-Pakete (`cec-utils` auf Debian/RPi, `libcec` auf Fedora/Arch) installieren und den alarm-monitor-Container mit `/dev/cec0` sowie `cec-client` anbinden. Die eigentliche Steuerungslogik (Einschalten bei Alarm, Standby nach Idle-Zeit, feste Einschaltzeiten) liegt in **alarm-monitor** und wird über Einstellungen → HDMI-CEC konfiguriert.
+Der Installer (`install.sh`) kann Host-Pakete (`cec-utils` auf Debian/RPi, `libcec` auf Fedora/Arch) installieren und den alarm-monitor-Container mit `/dev/cec0` sowie `cec-client` anbinden. Bei erneutem Ausführen erkennt das Skript bestehende Installationen und installiert nur fehlende Pakete bzw. neue Komponenten (Upgrade-Modus). Die eigentliche Steuerungslogik (Einschalten bei Alarm, Standby nach Idle-Zeit, feste Einschaltzeiten) liegt in **alarm-monitor** und wird über Einstellungen → HDMI-CEC konfiguriert.
 
 Siehe auch: [alarm-monitor – HDMI-CEC Dokumentation](https://github.com/TimUx/alarm-monitor/blob/main/README.md#konfiguration)
 

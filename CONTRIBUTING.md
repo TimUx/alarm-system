@@ -209,6 +209,10 @@ Beispiele:
    # Vollständigen Installations-Lauf starten (interaktiv)
    chmod +x install.sh
    ./install.sh
+
+   # Upgrade-Pfad testen: Skript erneut ausführen und prüfen, ob bestehende
+   # Komponenten erkannt werden und nur fehlende Schritte ausgeführt werden
+   ./install.sh
    ```
 
 2. **Syntax-Validierung**

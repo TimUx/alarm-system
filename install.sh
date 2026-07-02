@@ -6,7 +6,7 @@ if [ -z "${BASH_VERSION:-}" ]; then
 fi
 
 # =============================================================================
-# install.sh – Alarm-System: Vollautomatisches 1-Click Installationsskript
+# install.sh – Alarm-System: Installation & Upgrade (idempotent)
 #
 # Unterstützte Architekturen : x86_64, aarch64 (arm64), armv7l, armv6l
 # Unterstützte Distributionen: Debian, Ubuntu, Raspberry Pi OS,
@@ -19,6 +19,9 @@ fi
 #   curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh | bash
 #   – oder –
 #   chmod +x install.sh && ./install.sh
+#
+# Das Skript erkennt bestehende Installationen und führt nur fehlende Schritte aus
+# (Upgrade-Modus). Bereits installierte Komponenten bleiben erhalten.
 #
 # Das Skript darf NICHT als root ausgeführt werden (sudo wird intern verwendet).
 # =============================================================================
@@ -135,6 +138,151 @@ yes_no() {
 # bool_to_yn <value>  → gibt "y" oder "n" zurück (für yes_no-Standardwerte)
 bool_to_yn() { [[ "${1:-false}" == "true" ]] && echo "y" || echo "n"; }
 
+# component_default <bereits_installiert> [frisch_installieren_default=true]
+# Standardwert für yes_no: bei Upgrade installierte Komponenten = ja, neue = nein
+component_default() {
+    if [[ "${EXISTING_INSTALL:-false}" == "true" ]]; then
+        [[ "${1:-false}" == "true" ]] && echo "y" || echo "n"
+    else
+        bool_to_yn "${2:-true}"
+    fi
+}
+
+# pkg_is_installed <paketname>  → 0 wenn installiert
+pkg_is_installed() {
+    case "$PKG_MGR" in
+        apt)     dpkg -s "$1" &>/dev/null ;;
+        dnf|yum) rpm -q "$1" &>/dev/null ;;
+        pacman)  pacman -Qi "$1" &>/dev/null ;;
+        zypper)  rpm -q "$1" &>/dev/null ;;
+        apk)     apk info -e "$1" &>/dev/null ;;
+        *)       return 1 ;;
+    esac
+}
+
+# install_packages_if_missing <paket> ...
+install_packages_if_missing() {
+    local _pkg _missing=()
+    for _pkg in "$@"; do
+        pkg_is_installed "$_pkg" || _missing+=("$_pkg")
+    done
+    if [[ ${#_missing[@]} -eq 0 ]]; then
+        info "Pakete bereits installiert: $*"
+        return 0
+    fi
+    eval "${PKG_INSTALL} ${_missing[*]}"
+    ok "Pakete installiert: ${_missing[*]}"
+}
+
+# locale_is_configured  → 0 wenn deutsche Locale aktiv
+locale_is_configured() {
+    [[ "${LANG:-}" == "de_DE.UTF-8" ]] \
+        || grep -q '^LANG=de_DE.UTF-8' /etc/default/locale 2>/dev/null \
+        || grep -q '^LANG=de_DE.UTF-8' /etc/locale.conf 2>/dev/null
+}
+
+# load_env_file <pfad>  → lädt KEY=VALUE in Shell-Variablen (nur wenn leer)
+load_env_file() {
+    local _file="$1" _line _key _val
+    [[ -f "$_file" ]] || return 1
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        [[ "$_line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$_line" =~ ^[[:space:]]*$ ]] && continue
+        if [[ "$_line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            _key="${BASH_REMATCH[1]}"
+            _val="${BASH_REMATCH[2]}"
+            if [[ -z "${!_key:-}" ]]; then
+                # shellcheck disable=SC2163
+                printf -v "$_key" '%s' "$_val"
+            fi
+        fi
+    done < "$_file"
+}
+
+# copy_env_section <zieldatei> <quelldatei> <abschnittsmarker>
+# Kopiert einen .env-Abschnitt (z.B. "# ALARM-MONITOR") aus der Quelldatei
+copy_env_section() {
+    local _dest="$1" _src="$2" _marker="$3"
+    [[ -f "$_src" ]] || return 1
+    awk -v m="$3" '
+        $0 ~ m { found=1 }
+        found {
+            if (NR > 1 && /^# =+/ && $0 !~ m) exit
+            print
+        }
+    ' "$_src" >> "$_dest"
+}
+
+# detect_existing_installation  → setzt EXISTING_* Flags und lädt .env
+detect_existing_installation() {
+    EXISTING_INSTALL=false
+    EXISTING_MONITOR=false
+    EXISTING_MESSENGER=false
+    EXISTING_MAIL=false
+    EXISTING_CADDY=false
+    EXISTING_KIOSK=false
+    EXISTING_HDMI_CEC=false
+
+    local _dir="${INSTALL_DIR}"
+
+    if [[ -f "${_dir}/.env" ]]; then
+        EXISTING_INSTALL=true
+        INSTALL_DIR="${_dir}"
+        load_env_file "${_dir}/.env"
+        grep -q '^ALARM_MONITOR_CEC_ENABLED=true' "${_dir}/.env" 2>/dev/null && EXISTING_HDMI_CEC=true
+        _mail_targets="$(grep -cE '^ALARM_MAIL_TARGET_[0-9]+_TYPE=' "${_dir}/.env" 2>/dev/null || echo 0)"
+        if [[ "${_mail_targets:-0}" -gt 0 ]]; then
+            ALARM_MAIL_TARGET_COUNT="${_mail_targets}"
+            # Dynamische Target-Variablen aus .env laden
+            while IFS= read -r _line || [[ -n "$_line" ]]; do
+                if [[ "$_line" =~ ^(ALARM_MAIL_TARGET_[0-9]+_[A-Z_]+)=(.*)$ ]]; then
+                    _tkey="${BASH_REMATCH[1]}"
+                    _tval="${BASH_REMATCH[2]}"
+                    printf -v "$_tkey" '%s' "$_tval"
+                fi
+            done < <(grep -E '^ALARM_MAIL_TARGET_[0-9]+_' "${_dir}/.env" 2>/dev/null || true)
+        fi
+    fi
+
+    if [[ -f "${_dir}/docker-compose.yml" ]]; then
+        EXISTING_INSTALL=true
+        INSTALL_DIR="${_dir}"
+        grep -qE '^[[:space:]]+alarm-monitor:' "${_dir}/docker-compose.yml" 2>/dev/null && EXISTING_MONITOR=true
+        grep -qE '^[[:space:]]+alarm-messenger:' "${_dir}/docker-compose.yml" 2>/dev/null && EXISTING_MESSENGER=true
+        grep -qE '^[[:space:]]+alarm-mail:' "${_dir}/docker-compose.yml" 2>/dev/null && EXISTING_MAIL=true
+        grep -qE '^[[:space:]]+caddy:' "${_dir}/docker-compose.yml" 2>/dev/null && EXISTING_CADDY=true
+    fi
+
+    # Laufende/gestoppte Container als zusätzliche Quelle
+    if command -v docker >/dev/null 2>&1; then
+        local _names
+        _names="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+        echo "$_names" | grep -qx 'alarm-monitor'   && EXISTING_MONITOR=true   && EXISTING_INSTALL=true
+        echo "$_names" | grep -qx 'alarm-messenger' && EXISTING_MESSENGER=true && EXISTING_INSTALL=true
+        echo "$_names" | grep -qx 'alarm-mail'      && EXISTING_MAIL=true      && EXISTING_INSTALL=true
+        echo "$_names" | grep -qx 'alarm-caddy'     && EXISTING_CADDY=true     && EXISTING_INSTALL=true
+    fi
+
+    # Kiosk via systemd
+    if systemctl is-enabled kiosk.service &>/dev/null 2>&1; then
+        EXISTING_KIOSK=true
+        EXISTING_INSTALL=true
+    fi
+
+    if [[ "$EXISTING_INSTALL" == "true" ]]; then
+        step "Bestehende Installation erkannt"
+        info "Installationsverzeichnis: ${INSTALL_DIR}"
+        [[ "$EXISTING_MONITOR"   == "true" ]] && ok "alarm-monitor bereits installiert"
+        [[ "$EXISTING_MESSENGER" == "true" ]] && ok "alarm-messenger bereits installiert"
+        [[ "$EXISTING_MAIL"      == "true" ]] && ok "alarm-mail bereits installiert"
+        [[ "$EXISTING_CADDY"     == "true" ]] && ok "Caddy bereits konfiguriert"
+        [[ "$EXISTING_KIOSK"     == "true" ]] && ok "Kiosk-Modus bereits eingerichtet"
+        [[ "$EXISTING_HDMI_CEC"  == "true" ]] && ok "HDMI-CEC bereits aktiviert"
+        echo ""
+        info "Upgrade-Modus: Es werden nur fehlende Pakete und Konfigurationen ergänzt."
+    fi
+}
+
 # load_state: Lädt gespeicherte Eingaben aus STATE_FILE als Shell-Variablen
 load_state() {
     if [[ -f "${STATE_FILE}" ]]; then
@@ -249,6 +397,10 @@ detect_system() {
 
 # install_hdmi_cec_packages  →  Installiert cec-client je nach Paketmanager
 install_hdmi_cec_packages() {
+    if command -v cec-client >/dev/null 2>&1; then
+        ok "cec-client bereits installiert: $(command -v cec-client)"
+        return 0
+    fi
     local _installed=false
     case "$PKG_MGR" in
         apt)
@@ -319,13 +471,17 @@ configure_hdmi_cec_access() {
         ok "Benutzer '${SCRIPT_USER}' zur Gruppe 'video' hinzugefügt (CEC-Zugriff)."
     fi
 
-    sudo tee /etc/udev/rules.d/99-alarm-system-cec.rules > /dev/null <<'UDEV'
+    if [[ "${EXISTING_HDMI_CEC:-false}" == "true" && -f /etc/udev/rules.d/99-alarm-system-cec.rules ]]; then
+        info "HDMI-CEC udev-Regel bereits vorhanden."
+    else
+        sudo tee /etc/udev/rules.d/99-alarm-system-cec.rules > /dev/null <<'UDEV'
 # HDMI-CEC Geräte für Alarm-System (alarm-monitor)
 KERNEL=="cec[0-9]*", MODE="0660", GROUP="video"
 UDEV
-    sudo udevadm control --reload-rules 2>/dev/null || true
-    sudo udevadm trigger 2>/dev/null || true
-    ok "udev-Regel für HDMI-CEC eingerichtet."
+        sudo udevadm control --reload-rules 2>/dev/null || true
+        sudo udevadm trigger 2>/dev/null || true
+        ok "udev-Regel für HDMI-CEC eingerichtet."
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -371,6 +527,9 @@ ALARM_MAIL_DEDUP_DB="${ALARM_MAIL_DEDUP_DB:-}"
 ALARM_MAIL_TARGET_COUNT="${ALARM_MAIL_TARGET_COUNT:-0}"
 load_state
 
+# Bestehende Installation erkennen (lädt .env-Werte, setzt EXISTING_* Flags)
+detect_existing_installation
+
 # Abwärtskompatibilität: alter Variablenname aus früheren install.sh-Versionen
 ALARM_MONITOR_DISPLAY_DURATION_MINUTES="${ALARM_MONITOR_DISPLAY_DURATION_MINUTES:-${ALARM_MONITOR_DISPLAY_DURATION:-30}}"
 
@@ -388,9 +547,23 @@ echo ""
 info "alarm-mail benötigt mindestens ein Ziel (lokal installierter Dienst oder externer Endpunkt)."
 echo ""
 
-yes_no "alarm-monitor installieren?" "$(bool_to_yn "${INSTALL_MONITOR}")" && INSTALL_MONITOR=true || INSTALL_MONITOR=false
-yes_no "alarm-messenger installieren?" "$(bool_to_yn "${INSTALL_MESSENGER}")" && INSTALL_MESSENGER=true || INSTALL_MESSENGER=false
-yes_no "alarm-mail installieren?" "$(bool_to_yn "${INSTALL_MAIL}")" && INSTALL_MAIL=true || INSTALL_MAIL=false
+yes_no "alarm-monitor installieren?" "$(component_default "${EXISTING_MONITOR:-false}" true)" && INSTALL_MONITOR=true || INSTALL_MONITOR=false
+yes_no "alarm-messenger installieren?" "$(component_default "${EXISTING_MESSENGER:-false}" true)" && INSTALL_MESSENGER=true || INSTALL_MESSENGER=false
+yes_no "alarm-mail installieren?" "$(component_default "${EXISTING_MAIL:-false}" true)" && INSTALL_MAIL=true || INSTALL_MAIL=false
+
+# Bereits installierte Komponenten können nicht per install.sh entfernt werden
+if [[ "${EXISTING_MONITOR:-false}" == "true" && "$INSTALL_MONITOR" == "false" ]]; then
+    warn "alarm-monitor ist bereits installiert und wird beibehalten (keine Deinstallation über install.sh)."
+    INSTALL_MONITOR=true
+fi
+if [[ "${EXISTING_MESSENGER:-false}" == "true" && "$INSTALL_MESSENGER" == "false" ]]; then
+    warn "alarm-messenger ist bereits installiert und wird beibehalten (keine Deinstallation über install.sh)."
+    INSTALL_MESSENGER=true
+fi
+if [[ "${EXISTING_MAIL:-false}" == "true" && "$INSTALL_MAIL" == "false" ]]; then
+    warn "alarm-mail ist bereits installiert und wird beibehalten (keine Deinstallation über install.sh)."
+    INSTALL_MAIL=true
+fi
 
 if [[ "$INSTALL_MONITOR" == "false" && "$INSTALL_MESSENGER" == "false" && "$INSTALL_MAIL" == "false" ]]; then
     die "Mindestens eine Komponente muss ausgewählt werden."
@@ -400,7 +573,11 @@ if [[ "$INSTALL_MAIL" == "true" && "$INSTALL_MONITOR" == "false" && "$INSTALL_ME
     info "Keine lokalen Ziel-Dienste gewählt. Du wirst in Schritt 7 externe Ziele konfigurieren."
 fi
 
-yes_no "Caddy Reverse Proxy (HTTPS) konfigurieren?" "$(bool_to_yn "${INSTALL_CADDY}")" && INSTALL_CADDY=true || INSTALL_CADDY=false
+yes_no "Caddy Reverse Proxy (HTTPS) konfigurieren?" "$(component_default "${EXISTING_CADDY:-false}" false)" && INSTALL_CADDY=true || INSTALL_CADDY=false
+if [[ "${EXISTING_CADDY:-false}" == "true" && "$INSTALL_CADDY" == "false" ]]; then
+    warn "Caddy ist bereits konfiguriert und wird beibehalten."
+    INSTALL_CADDY=true
+fi
 
 # ---------------------------------------------------------------------------
 # Schritt 3: Kiosk-Modus
@@ -410,7 +587,7 @@ echo ""
 info "Für eine dedizierte Anzeige (z.B. Raspberry Pi, Intel NUC) kann ein Kiosk-Browser"
 info "im Vollbildmodus mit minimalen GUI-Ressourcen konfiguriert werden."
 echo ""
-if yes_no "Kiosk-Modus konfigurieren?" "$(bool_to_yn "${INSTALL_KIOSK}")"; then
+if yes_no "Kiosk-Modus konfigurieren?" "$(component_default "${EXISTING_KIOSK:-false}" false)"; then
     INSTALL_KIOSK=true
     if [[ "$INSTALL_MONITOR" == "true" ]]; then
         prompt_optional KIOSK_URL "URL für Kiosk-Browser" "${KIOSK_URL:-http://localhost:8000}"
@@ -435,10 +612,17 @@ if [[ "$INSTALL_MONITOR" == "true" ]]; then
     if [[ "$INSTALL_KIOSK" == "true" || "$IS_RPI" == "true" ]]; then
         _cec_default="y"
     fi
+    if [[ "${EXISTING_HDMI_CEC:-false}" == "true" ]]; then
+        _cec_default="y"
+    fi
     if yes_no "HDMI-CEC Unterstützung einrichten?" "${_cec_default}"; then
         INSTALL_HDMI_CEC=true
     else
         INSTALL_HDMI_CEC=false
+        if [[ "${EXISTING_HDMI_CEC:-false}" == "true" ]]; then
+            warn "HDMI-CEC bleibt in der bestehenden Konfiguration aktiv."
+            INSTALL_HDMI_CEC=true
+        fi
     fi
 fi
 
@@ -453,7 +637,21 @@ prompt_value INSTALL_DIR "Installationsverzeichnis" "${INSTALL_DIR}" false
 # ---------------------------------------------------------------------------
 # Schritt 5: alarm-monitor Konfiguration
 # ---------------------------------------------------------------------------
+RECONFIGURE_MONITOR=false
 if [[ "$INSTALL_MONITOR" == "true" ]]; then
+    if [[ "${EXISTING_MONITOR:-false}" == "true" ]]; then
+        if yes_no "alarm-monitor Konfiguration ändern?" "n"; then
+            RECONFIGURE_MONITOR=true
+        else
+            RECONFIGURE_MONITOR=false
+            info "Bestehende alarm-monitor Konfiguration wird beibehalten."
+        fi
+    else
+        RECONFIGURE_MONITOR=true
+    fi
+fi
+
+if [[ "$INSTALL_MONITOR" == "true" && "$RECONFIGURE_MONITOR" == "true" ]]; then
     step "alarm-monitor Konfiguration"
 
     MONITOR_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
@@ -527,7 +725,21 @@ fi
 # ---------------------------------------------------------------------------
 # Schritt 6: alarm-messenger Konfiguration
 # ---------------------------------------------------------------------------
+RECONFIGURE_MESSENGER=false
 if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+    if [[ "${EXISTING_MESSENGER:-false}" == "true" ]]; then
+        if yes_no "alarm-messenger Konfiguration ändern?" "n"; then
+            RECONFIGURE_MESSENGER=true
+        else
+            RECONFIGURE_MESSENGER=false
+            info "Bestehende alarm-messenger Konfiguration wird beibehalten."
+        fi
+    else
+        RECONFIGURE_MESSENGER=true
+    fi
+fi
+
+if [[ "$INSTALL_MESSENGER" == "true" && "$RECONFIGURE_MESSENGER" == "true" ]]; then
     step "alarm-messenger Konfiguration"
 
     MESSENGER_API_KEY_SUGGESTION="$(openssl rand -hex 32 2>/dev/null || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' | tr '[:upper:]' '[:lower:]')"
@@ -595,7 +807,21 @@ fi
 # ---------------------------------------------------------------------------
 # Schritt 7: alarm-mail Konfiguration
 # ---------------------------------------------------------------------------
+RECONFIGURE_MAIL=false
 if [[ "$INSTALL_MAIL" == "true" ]]; then
+    if [[ "${EXISTING_MAIL:-false}" == "true" ]]; then
+        if yes_no "alarm-mail Konfiguration ändern?" "n"; then
+            RECONFIGURE_MAIL=true
+        else
+            RECONFIGURE_MAIL=false
+            info "Bestehende alarm-mail Konfiguration wird beibehalten."
+        fi
+    else
+        RECONFIGURE_MAIL=true
+    fi
+fi
+
+if [[ "$INSTALL_MAIL" == "true" && "$RECONFIGURE_MAIL" == "true" ]]; then
     step "alarm-mail Konfiguration (IMAP)"
 
     prompt_value ALARM_MAIL_IMAP_HOST "IMAP-Server (z.B. imap.gmail.com)" "${ALARM_MAIL_IMAP_HOST:-}" false
@@ -687,6 +913,7 @@ echo -e "  Installationsverzeichnis : ${CYAN}${INSTALL_DIR}${NC}"
 echo -e "  Zeitzone                 : ${CYAN}${TZ}${NC}"
 echo -e "  Architektur              : ${CYAN}${ARCH}${NC}"
 echo -e "  Paketmanager             : ${CYAN}${PKG_MGR}${NC}"
+[[ "${EXISTING_INSTALL:-false}" == "true" ]] && echo -e "  Modus                    : ${CYAN}Upgrade${NC} (bestehende Installation erweitern)"
 echo ""
 echo -e "  Komponenten:"
 [[ "$INSTALL_MONITOR"   == "true" ]] && echo -e "    ${GREEN}✔${NC} alarm-monitor   (Port ${ALARM_MONITOR_PORT:-8000})"
@@ -709,31 +936,34 @@ yes_no "Installation jetzt starten?" "y" || { echo "Abgebrochen."; exit 0; }
 step "Systempakete installieren"
 eval "${PKG_UPDATE}" 2>/dev/null || true
 
-# Basis-Pakete je nach Paketmanager
+# Basis-Pakete je nach Paketmanager (nur fehlende installieren)
 case "$PKG_MGR" in
     apt)
-        eval "${PKG_INSTALL} git curl wget ca-certificates gnupg lsb-release unzip"
+        install_packages_if_missing git curl wget ca-certificates gnupg lsb-release unzip
         ;;
     dnf|yum)
-        eval "${PKG_INSTALL} git curl wget ca-certificates gnupg2 unzip"
+        install_packages_if_missing git curl wget ca-certificates gnupg2 unzip
         ;;
     pacman)
-        eval "${PKG_INSTALL} git curl wget ca-certificates gnupg unzip"
+        install_packages_if_missing git curl wget ca-certificates gnupg unzip
         ;;
     zypper)
-        eval "${PKG_INSTALL} git curl wget ca-certificates gpg2 unzip"
+        install_packages_if_missing git curl wget ca-certificates gpg2 unzip
         ;;
     apk)
-        eval "${PKG_INSTALL} git curl wget ca-certificates gnupg unzip"
+        install_packages_if_missing git curl wget ca-certificates gnupg unzip
         ;;
 esac
-ok "Basis-Pakete installiert."
+ok "Basis-Pakete geprüft."
 
 # ---------------------------------------------------------------------------
 # Schritt A2: Systemlokalisierung konfigurieren (Deutsch)
 # ---------------------------------------------------------------------------
 step "Systemlokalisierung konfigurieren (Sprache: Deutsch, Tastatur: de, Zeitzone: ${TZ})"
 
+if locale_is_configured; then
+    info "Deutsche Locale bereits konfiguriert – übersprungen."
+else
 case "$PKG_MGR" in
     apt)
         eval "${PKG_INSTALL} locales keyboard-configuration console-setup" 2>/dev/null || true
@@ -795,6 +1025,7 @@ case "$PKG_MGR" in
         sudo localectl set-x11-keymap de 2>/dev/null || true
         ;;
 esac
+fi
 
 # Zeitzone system-weit setzen (zusätzlich zur TZ-Umgebungsvariable in Docker)
 sudo timedatectl set-timezone "${TZ}" 2>/dev/null \
@@ -842,8 +1073,13 @@ else
     info "Docker Compose bereits verfügbar: $(docker compose version)"
 fi
 
-# Benutzer zur Docker-Gruppe hinzufügen
-sudo usermod -aG docker "${SCRIPT_USER}"
+# Benutzer zur Docker-Gruppe hinzufügen (nur wenn noch nicht Mitglied)
+if id -nG "${SCRIPT_USER}" 2>/dev/null | grep -qw docker; then
+    info "Benutzer '${SCRIPT_USER}' ist bereits in der Docker-Gruppe."
+else
+    sudo usermod -aG docker "${SCRIPT_USER}"
+    ok "Benutzer '${SCRIPT_USER}' zur Docker-Gruppe hinzugefügt."
+fi
 
 # Docker starten und aktivieren
 sudo systemctl enable docker 2>/dev/null || true
@@ -883,13 +1119,27 @@ sudo chown -R "${SCRIPT_USER}:${SCRIPT_USER}" "${INSTALL_DIR}"
 mkdir -p "${INSTALL_DIR}"/{backup,logs}
 ok "Verzeichnisse angelegt: ${INSTALL_DIR}"
 
+# HDMI-CEC neu aktivieren erfordert .env-Update für alarm-monitor
+if [[ "$INSTALL_MONITOR" == "true" && "$INSTALL_HDMI_CEC" == "true" \
+      && "${EXISTING_HDMI_CEC:-false}" == "false" && "${RECONFIGURE_MONITOR:-false}" == "false" ]]; then
+    info "HDMI-CEC wird neu aktiviert – alarm-monitor .env wird aktualisiert."
+    RECONFIGURE_MONITOR=true
+fi
+
 # ---------------------------------------------------------------------------
 # Schritt D: .env Datei generieren
 # ---------------------------------------------------------------------------
 step ".env Konfigurationsdatei generieren"
 
 ENV_FILE="${INSTALL_DIR}/.env"
+ENV_BACKUP=""
+if [[ -f "${ENV_FILE}" ]]; then
+    ENV_BACKUP="${ENV_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
+    cp "${ENV_FILE}" "${ENV_BACKUP}"
+    ok "Bestehende .env gesichert: ${ENV_BACKUP}"
+fi
 
+# .env neu schreiben – unveränderte Komponenten aus Backup übernehmen
 cat > "${ENV_FILE}" <<EOF
 # =============================================================================
 # Alarm-System Konfiguration
@@ -901,7 +1151,7 @@ TZ=${TZ}
 
 EOF
 
-if [[ "$INSTALL_MONITOR" == "true" ]]; then
+_write_monitor_env() {
     cat >> "${ENV_FILE}" <<EOF
 # =============================================================================
 # ALARM-MONITOR
@@ -932,9 +1182,9 @@ ${INSTALL_HDMI_CEC:+ALARM_MONITOR_CEC_CLIENT_PATH=${ALARM_MONITOR_CEC_CLIENT_PAT
 ${INSTALL_HDMI_CEC:+ALARM_MONITOR_CEC_DEVICE=${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}}
 
 EOF
-fi
+}
 
-if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+_write_messenger_env() {
     cat >> "${ENV_FILE}" <<EOF
 # =============================================================================
 # ALARM-MESSENGER
@@ -967,9 +1217,9 @@ ALARM_MESSENGER_APNS_PRODUCTION=${ALARM_MESSENGER_APNS_PRODUCTION:-false}
 EOF
     fi
     echo "" >> "${ENV_FILE}"
-fi
+}
 
-if [[ "$INSTALL_MAIL" == "true" ]]; then
+_write_mail_env() {
     cat >> "${ENV_FILE}" <<EOF
 # =============================================================================
 # ALARM-MAIL (IMAP)
@@ -1001,6 +1251,33 @@ EOF
         [[ -n "${!_gv:-}" ]] && echo "ALARM_MAIL_TARGET_${_i}_GROUPS=${!_gv}" >> "${ENV_FILE}"
     done
     echo "" >> "${ENV_FILE}"
+}
+
+if [[ "$INSTALL_MONITOR" == "true" ]]; then
+    if [[ -n "${ENV_BACKUP}" && "${RECONFIGURE_MONITOR:-true}" == "false" ]]; then
+        copy_env_section "${ENV_FILE}" "${ENV_BACKUP}" "# ALARM-MONITOR" || _write_monitor_env
+        info "alarm-monitor .env-Abschnitt aus Backup übernommen."
+    else
+        _write_monitor_env
+    fi
+fi
+
+if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+    if [[ -n "${ENV_BACKUP}" && "${RECONFIGURE_MESSENGER:-true}" == "false" ]]; then
+        copy_env_section "${ENV_FILE}" "${ENV_BACKUP}" "# ALARM-MESSENGER" || _write_messenger_env
+        info "alarm-messenger .env-Abschnitt aus Backup übernommen."
+    else
+        _write_messenger_env
+    fi
+fi
+
+if [[ "$INSTALL_MAIL" == "true" ]]; then
+    if [[ -n "${ENV_BACKUP}" && "${RECONFIGURE_MAIL:-true}" == "false" ]]; then
+        copy_env_section "${ENV_FILE}" "${ENV_BACKUP}" "# ALARM-MAIL" || _write_mail_env
+        info "alarm-mail .env-Abschnitt aus Backup übernommen."
+    else
+        _write_mail_env
+    fi
 fi
 
 chmod 600 "${ENV_FILE}"
@@ -1459,7 +1736,17 @@ ok "Hilfsskripte erstellt: update.sh, os-update.sh, backup.sh, status.sh, logs.s
 # ---------------------------------------------------------------------------
 # Schritt G: Kiosk-Modus konfigurieren
 # ---------------------------------------------------------------------------
-if [[ "$INSTALL_KIOSK" == "true" ]]; then
+RECONFIGURE_KIOSK=true
+if [[ "${EXISTING_KIOSK:-false}" == "true" ]]; then
+    if yes_no "Kiosk-Konfiguration aktualisieren?" "n"; then
+        RECONFIGURE_KIOSK=true
+    else
+        RECONFIGURE_KIOSK=false
+        info "Bestehende Kiosk-Konfiguration wird beibehalten."
+    fi
+fi
+
+if [[ "$INSTALL_KIOSK" == "true" && "$RECONFIGURE_KIOSK" == "true" ]]; then
     step "Kiosk-Modus konfigurieren"
 
     # Notwendige Pakete für X / Kiosk installieren
@@ -2494,8 +2781,17 @@ fi
 # Schritt H: Docker Images ziehen
 # ---------------------------------------------------------------------------
 step "Docker Images herunterladen"
-sudo sh -c "cd '${INSTALL_DIR}' && docker compose pull"
-ok "Images heruntergeladen."
+COMPOSE_SERVICES=()
+[[ "$INSTALL_MONITOR"   == "true" ]] && COMPOSE_SERVICES+=("alarm-monitor")
+[[ "$INSTALL_MESSENGER" == "true" ]] && COMPOSE_SERVICES+=("alarm-messenger")
+[[ "$INSTALL_MAIL"      == "true" ]] && COMPOSE_SERVICES+=("alarm-mail")
+[[ "$INSTALL_CADDY"     == "true" ]] && COMPOSE_SERVICES+=("caddy")
+if [[ ${#COMPOSE_SERVICES[@]} -gt 0 ]]; then
+    sudo sh -c "cd '${INSTALL_DIR}' && docker compose pull ${COMPOSE_SERVICES[*]}"
+    ok "Images heruntergeladen: ${COMPOSE_SERVICES[*]}"
+else
+    info "Keine Docker-Services zum Herunterladen ausgewählt."
+fi
 
 # ---------------------------------------------------------------------------
 # Schritt I: Dienste starten
@@ -2539,7 +2835,7 @@ wait_for_health() {
 # ---------------------------------------------------------------------------
 # Schritt K: Admin-Benutzer für alarm-messenger anlegen
 # ---------------------------------------------------------------------------
-if [[ "$INSTALL_MESSENGER" == "true" ]]; then
+if [[ "$INSTALL_MESSENGER" == "true" && "${EXISTING_MESSENGER:-false}" == "false" ]]; then
     step "alarm-messenger Admin-Benutzer anlegen"
     INIT_RESPONSE="$(curl -sf -X POST \
         "http://localhost:${ALARM_MESSENGER_PORT:-3000}/api/admin/init" \
@@ -2553,6 +2849,8 @@ if [[ "$INSTALL_MESSENGER" == "true" ]]; then
     else
         ok "Admin-Benutzer '${MESSENGER_ADMIN_USER}' angelegt."
     fi
+elif [[ "$INSTALL_MESSENGER" == "true" && "${EXISTING_MESSENGER:-false}" == "true" ]]; then
+    info "alarm-messenger Admin-Benutzer bereits vorhanden – übersprungen."
 fi
 
 # ---------------------------------------------------------------------------
@@ -2560,7 +2858,11 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 sep
-echo -e "${BOLD}${GREEN}  ✔  Installation abgeschlossen!${NC}"
+if [[ "${EXISTING_INSTALL:-false}" == "true" ]]; then
+    echo -e "${BOLD}${GREEN}  ✔  Upgrade abgeschlossen!${NC}"
+else
+    echo -e "${BOLD}${GREEN}  ✔  Installation abgeschlossen!${NC}"
+fi
 sep
 echo ""
 echo -e "${BOLD}  Installationsverzeichnis: ${CYAN}${INSTALL_DIR}${NC}"

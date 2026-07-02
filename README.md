@@ -83,6 +83,8 @@ Nur folgende Dienste benötigen externe Ports:
 Das einfachste Vorgehen: das interaktive `install.sh` direkt herunterladen und ausführen.
 Es erkennt automatisch die Prozessor-Architektur und Linux-Distribution, installiert Docker,
 fragt alle nötigen Zugangsdaten interaktiv ab und richtet das System vollständig ein.
+Bei erneutem Ausführen erkennt das Skript bestehende Installationen und führt nur fehlende
+Pakete und Konfigurationen aus (Upgrade-Modus).
 
 **Voraussetzungen:**
 - Linux-Server (beliebige Distribution: Debian, Ubuntu, Raspberry Pi OS, Fedora, Arch, openSUSE, Alpine …)
@@ -121,15 +123,16 @@ chmod +x install.sh
 Das Skript führt Sie interaktiv durch folgende Schritte:
 
 1. **Systemerkennung** – Architektur und Linux-Distribution werden automatisch erkannt
-2. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
+2. **Bestehende Installation** – Falls vorhanden: erkannte Komponenten anzeigen (Upgrade-Modus)
+3. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
    (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
-3. **Kiosk-Modus** – Optional: Browser im Vollbild-Kiosk-Modus einrichten (z. B. für Raspberry Pi)
-4. **HDMI-CEC** – Optional: Monitor/TV-Steuerung per HDMI-CEC (z. B. für Kiosk-Displays am RPi)
-5. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
-   *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
-6. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
-7. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
-8. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+4. **Kiosk-Modus** – Optional: Browser im Vollbild-Kiosk-Modus einrichten (z. B. für Raspberry Pi)
+5. **HDMI-CEC** – Optional: Monitor/TV-Steuerung per HDMI-CEC (z. B. für Kiosk-Displays am RPi)
+6. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+   *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen; bei Upgrade standardmäßig beibehalten)*
+7. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
+8. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
+9. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
 
 Außerdem speichert das Skript Eingaben in `~/.alarm-system-install.conf` und verwendet sie bei späteren Läufen als Standardwerte.
 
@@ -151,7 +154,31 @@ Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
 └── sounds/alarm.wav     # Beispiel-Alarmton (optional)
 ```
 
-> **Wichtig:** Bei erneutem Ausführen von `install.sh` werden `.env` und `docker-compose.yml` im gewählten Installationsverzeichnis (standardmäßig `/opt/alarm-system`) neu generiert (überschrieben). Vorherige Anpassungen deshalb vorher sichern.
+> **Upgrade:** `install.sh` kann beliebig oft erneut ausgeführt werden. Das Skript erkennt
+> bestehende Installationen in `/opt/alarm-system` (`.env`, `docker-compose.yml`, Container,
+> systemd-Services) und installiert nur fehlende Pakete sowie neue Komponenten. Bereits
+> konfigurierte Dienste bleiben standardmäßig unverändert (Frage: *„Konfiguration ändern?“* → nein).
+> Die `.env` wird vor Änderungen automatisch gesichert (`.env.bak.*`). Bereits installierte
+> Komponenten können über `install.sh` nicht entfernt werden.
+
+### Komponenten hinzufügen (Upgrade-Beispiel)
+
+Wenn z. B. nur `alarm-monitor` installiert ist und später `alarm-messenger` ergänzt werden soll:
+
+```bash
+./install.sh
+# Bestehende Installation wird erkannt
+# alarm-monitor: behalten (Standard: ja)
+# alarm-messenger: hinzufügen (ja)
+# Konfiguration ändern? → nein (für bestehende Komponenten)
+# Nur die neue Komponente konfigurieren
+```
+
+Für reine Docker-Image-Updates ohne Konfigurationsänderung reicht:
+
+```bash
+cd /opt/alarm-system && ./update.sh
+```
 
 Automatisch eingerichtet durch den Installer:
 - `alarm-system.service` (Docker-Compose Autostart beim Boot)
@@ -252,7 +279,8 @@ curl -X POST http://localhost:3000/api/admin/init \
 
 Danach können Sie sich unter `http://localhost:3000/admin/login.html` anmelden.
 
-> **Hinweis:** Bei der Installation über `install.sh` wird der Admin-Benutzer automatisch während des Setup-Assistenten angelegt.
+> **Hinweis:** Bei der Installation über `install.sh` wird der Admin-Benutzer automatisch
+> während des Setup-Assistenten angelegt (nur bei neu installiertem `alarm-messenger`).
 
 ## Deployment mit SSL/TLS (Produktion)
 
@@ -339,7 +367,8 @@ curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh 
 chmod +x install.sh && ./install.sh
 ```
 Das Skript installiert Docker, fragt alle Konfigurationswerte interaktiv ab, generiert `.env` und
-`docker-compose.yml` und richtet optional einen Kiosk-Browser ein.
+`docker-compose.yml` und richtet optional einen Kiosk-Browser ein. Bei erneutem Ausführen
+erkennt es bestehende Installationen und ergänzt nur fehlende Komponenten (Upgrade-Modus).
 
 **Von install.sh generierte Skripte** (unter `/opt/alarm-system/`):
 ```bash
