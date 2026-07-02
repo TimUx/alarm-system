@@ -51,7 +51,8 @@ Das Skript führt Sie interaktiv durch folgende Schritte:
 2. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
    (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
 3. **Kiosk-Modus** – Soll ein Browser im Vollbild-Kiosk-Modus eingerichtet werden?
-4. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+4. **HDMI-CEC** – Optional: Monitor/TV per HDMI-CEC steuern (bei alarm-monitor)
+5. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
    *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
 5. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
 6. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
@@ -83,6 +84,7 @@ Automatisch eingerichtet durch den Installer:
 - `alarm-system.service` (Docker-Compose Autostart beim Boot)
 - wöchentliche Updates per Cron (Sonntag 02:30 OS, 02:45 Docker)
 - im Kiosk-Modus zusätzlich `kiosk.service`, `kiosk-watchdog.service` und (mit Monitor) `alarm-sound.service`
+- bei HDMI-CEC: `cec-utils`/`libcec` auf dem Host, Docker-Zugriff auf `/dev/cec0` für alarm-monitor
 
 ---
 

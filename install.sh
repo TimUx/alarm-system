@@ -149,7 +149,7 @@ load_state() {
 save_state() {
     local _vars=(
         INSTALL_DIR TZ
-        INSTALL_MONITOR INSTALL_MESSENGER INSTALL_MAIL INSTALL_CADDY INSTALL_KIOSK KIOSK_URL
+        INSTALL_MONITOR INSTALL_MESSENGER INSTALL_MAIL INSTALL_CADDY INSTALL_KIOSK KIOSK_URL INSTALL_HDMI_CEC
         ALARM_MONITOR_PORT ALARM_MONITOR_API_KEY ALARM_MONITOR_SETTINGS_PASSWORD ALARM_MONITOR_DISPLAY_DURATION_MINUTES ALARM_MONITOR_DOMAIN
         ALARM_MONITOR_ORS_API_KEY ALARM_MONITOR_METRICS_TOKEN ALARM_MONITOR_HISTORY_FILE ALARM_MONITOR_SETTINGS_FILE
         ALARM_MONITOR_GRUPPEN ALARM_MONITOR_FIRE_DEPARTMENT_NAME
@@ -244,6 +244,91 @@ detect_system() {
 }
 
 # ---------------------------------------------------------------------------
+# HDMI-CEC: Pakete, Pfade und Zugriff
+# ---------------------------------------------------------------------------
+
+# install_hdmi_cec_packages  →  Installiert cec-client je nach Paketmanager
+install_hdmi_cec_packages() {
+    local _installed=false
+    case "$PKG_MGR" in
+        apt)
+            if eval "${PKG_INSTALL} cec-utils" 2>/dev/null; then
+                _installed=true
+            fi
+            ;;
+        dnf|yum)
+            if eval "${PKG_INSTALL} libcec" 2>/dev/null; then
+                _installed=true
+            fi
+            ;;
+        pacman)
+            if eval "${PKG_INSTALL} libcec" 2>/dev/null; then
+                _installed=true
+            fi
+            ;;
+        zypper)
+            if eval "${PKG_INSTALL} libcec" 2>/dev/null; then
+                _installed=true
+            fi
+            ;;
+        apk)
+            if eval "${PKG_INSTALL} libcec" 2>/dev/null; then
+                _installed=true
+            fi
+            ;;
+    esac
+    if [[ "$_installed" == "true" ]]; then
+        ok "HDMI-CEC Pakete installiert."
+        return 0
+    fi
+    warn "HDMI-CEC Pakete konnten nicht installiert werden."
+    return 1
+}
+
+# detect_hdmi_cec_paths  →  Setzt CEC_CLIENT_PATH, CEC_DEVICE_PATH, CEC_LIB_MOUNTS
+detect_hdmi_cec_paths() {
+    CEC_CLIENT_PATH="$(command -v cec-client 2>/dev/null || true)"
+    CEC_DEVICE_PATH=""
+    CEC_LIB_MOUNTS=()
+
+    for _dev in /dev/cec0 /dev/cec1; do
+        if [[ -e "$_dev" ]]; then
+            CEC_DEVICE_PATH="$_dev"
+            break
+        fi
+    done
+    # Standardpfad, falls Gerät erst nach Neustart/HDMI-Hotplug erscheint
+    [[ -z "$CEC_DEVICE_PATH" ]] && CEC_DEVICE_PATH="/dev/cec0"
+
+    if [[ -n "$CEC_CLIENT_PATH" ]]; then
+        while IFS= read -r _lib; do
+            [[ -f "$_lib" ]] && CEC_LIB_MOUNTS+=("$_lib")
+        done < <(ldd "$CEC_CLIENT_PATH" 2>/dev/null \
+            | awk '/=> \//{print $3}' \
+            | grep -E 'libcec|libp8-platform' || true)
+    fi
+
+    ALARM_MONITOR_CEC_CLIENT_PATH="${CEC_CLIENT_PATH:-/usr/bin/cec-client}"
+    ALARM_MONITOR_CEC_DEVICE="${CEC_DEVICE_PATH}"
+}
+
+# configure_hdmi_cec_access  →  udev-Regel und Gruppenmitgliedschaft
+configure_hdmi_cec_access() {
+    if getent group video >/dev/null 2>&1; then
+        sudo usermod -aG video "${SCRIPT_USER}" 2>/dev/null || true
+        ok "Benutzer '${SCRIPT_USER}' zur Gruppe 'video' hinzugefügt (CEC-Zugriff)."
+    fi
+
+    sudo tee /etc/udev/rules.d/99-alarm-system-cec.rules > /dev/null <<'UDEV'
+# HDMI-CEC Geräte für Alarm-System (alarm-monitor)
+KERNEL=="cec[0-9]*", MODE="0660", GROUP="video"
+UDEV
+    sudo udevadm control --reload-rules 2>/dev/null || true
+    sudo udevadm trigger 2>/dev/null || true
+    ok "udev-Regel für HDMI-CEC eingerichtet."
+}
+
+# ---------------------------------------------------------------------------
 # Schritt 1: Systemerkennung
 # ---------------------------------------------------------------------------
 step "Systemerkennung"
@@ -255,6 +340,7 @@ INSTALL_MESSENGER="${INSTALL_MESSENGER:-true}"
 INSTALL_MAIL="${INSTALL_MAIL:-true}"
 INSTALL_CADDY="${INSTALL_CADDY:-false}"
 INSTALL_KIOSK="${INSTALL_KIOSK:-false}"
+INSTALL_HDMI_CEC="${INSTALL_HDMI_CEC:-false}"
 KIOSK_URL="${KIOSK_URL:-http://localhost:8000}"
 TZ="${TZ:-Europe/Berlin}"
 ALARM_MESSENGER_ENABLE_FCM="${ALARM_MESSENGER_ENABLE_FCM:-false}"
@@ -333,6 +419,27 @@ if yes_no "Kiosk-Modus konfigurieren?" "$(bool_to_yn "${INSTALL_KIOSK}")"; then
     fi
 else
     INSTALL_KIOSK=false
+fi
+
+# ---------------------------------------------------------------------------
+# Schritt 3b: HDMI-CEC (Monitor/TV Steuerung)
+# ---------------------------------------------------------------------------
+if [[ "$INSTALL_MONITOR" == "true" ]]; then
+    step "HDMI-CEC (Monitor/TV per HDMI steuern)"
+    echo ""
+    info "Mit HDMI-CEC kann alarm-monitor z.B. den Monitor/TV bei einem Alarm"
+    info "einschalten und nach Idle-Zeit wieder in den Standby versetzen."
+    info "Voraussetzung: HDMI-Kabel mit CEC-Unterstützung (z.B. Raspberry Pi → TV/Monitor)."
+    echo ""
+    _cec_default="n"
+    if [[ "$INSTALL_KIOSK" == "true" || "$IS_RPI" == "true" ]]; then
+        _cec_default="y"
+    fi
+    if yes_no "HDMI-CEC Unterstützung einrichten?" "${_cec_default}"; then
+        INSTALL_HDMI_CEC=true
+    else
+        INSTALL_HDMI_CEC=false
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -587,6 +694,7 @@ echo -e "  Komponenten:"
 [[ "$INSTALL_MAIL"      == "true" ]] && echo -e "    ${GREEN}✔${NC} alarm-mail"
 [[ "$INSTALL_CADDY"     == "true" ]] && echo -e "    ${GREEN}✔${NC} Caddy (Reverse Proxy / HTTPS)"
 [[ "$INSTALL_KIOSK"     == "true" ]] && echo -e "    ${GREEN}✔${NC} Kiosk-Browser → ${KIOSK_URL}"
+[[ "$INSTALL_HDMI_CEC"  == "true" ]] && echo -e "    ${GREEN}✔${NC} HDMI-CEC (Monitor/TV Steuerung für alarm-monitor)"
 sep
 echo ""
 yes_no "Installation jetzt starten?" "y" || { echo "Abgebrochen."; exit 0; }
@@ -743,6 +851,30 @@ sudo systemctl start  docker 2>/dev/null || true
 ok "Docker-Dienst aktiviert und gestartet."
 
 # ---------------------------------------------------------------------------
+# Schritt B2: HDMI-CEC Pakete installieren (für alarm-monitor)
+# ---------------------------------------------------------------------------
+if [[ "${INSTALL_HDMI_CEC:-false}" == "true" ]]; then
+    step "HDMI-CEC Pakete installieren"
+    if install_hdmi_cec_packages; then
+        detect_hdmi_cec_paths
+        configure_hdmi_cec_access
+        if [[ -n "${CEC_CLIENT_PATH:-}" ]]; then
+            ok "cec-client gefunden: ${CEC_CLIENT_PATH}"
+        else
+            warn "cec-client nicht im PATH – Paketinstallation prüfen."
+        fi
+        if [[ -e "${CEC_DEVICE_PATH:-/dev/cec0}" ]]; then
+            ok "CEC-Gerät gefunden: ${CEC_DEVICE_PATH}"
+        else
+            info "CEC-Gerät (${CEC_DEVICE_PATH:-/dev/cec0}) noch nicht vorhanden – erscheint ggf. nach Neustart mit angeschlossenem HDMI."
+        fi
+    else
+        warn "HDMI-CEC deaktiviert – Paketinstallation fehlgeschlagen."
+        INSTALL_HDMI_CEC=false
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Schritt C: Verzeichnisstruktur anlegen
 # ---------------------------------------------------------------------------
 step "Verzeichnisstruktur anlegen"
@@ -795,6 +927,9 @@ ${ALARM_MONITOR_FIRE_DEPARTMENT_NAME:+ALARM_MONITOR_FIRE_DEPARTMENT_NAME=${ALARM
 ${ALARM_MONITOR_DEFAULT_LATITUDE:+ALARM_MONITOR_DEFAULT_LATITUDE=${ALARM_MONITOR_DEFAULT_LATITUDE}}
 ${ALARM_MONITOR_DEFAULT_LONGITUDE:+ALARM_MONITOR_DEFAULT_LONGITUDE=${ALARM_MONITOR_DEFAULT_LONGITUDE}}
 ${ALARM_MONITOR_DEFAULT_LOCATION_NAME:+ALARM_MONITOR_DEFAULT_LOCATION_NAME=${ALARM_MONITOR_DEFAULT_LOCATION_NAME}}
+${INSTALL_HDMI_CEC:+ALARM_MONITOR_CEC_ENABLED=true}
+${INSTALL_HDMI_CEC:+ALARM_MONITOR_CEC_CLIENT_PATH=${ALARM_MONITOR_CEC_CLIENT_PATH:-/usr/bin/cec-client}}
+${INSTALL_HDMI_CEC:+ALARM_MONITOR_CEC_DEVICE=${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}}
 
 EOF
 fi
@@ -947,10 +1082,37 @@ EOF
     [[ -n "${ALARM_MONITOR_HISTORY_FILE:-}" ]]           && echo "      - ALARM_MONITOR_HISTORY_FILE=\${ALARM_MONITOR_HISTORY_FILE}" >> "${COMPOSE_FILE}"
     [[ -n "${ALARM_MONITOR_SETTINGS_FILE:-}" ]]           && echo "      - ALARM_MONITOR_SETTINGS_FILE=\${ALARM_MONITOR_SETTINGS_FILE}" >> "${COMPOSE_FILE}"
 
+    if [[ "${INSTALL_HDMI_CEC:-false}" == "true" ]]; then
+        cat >> "${COMPOSE_FILE}" <<'EOF'
+      - ALARM_MONITOR_CEC_ENABLED=true
+EOF
+        echo "      - ALARM_MONITOR_CEC_CLIENT_PATH=${ALARM_MONITOR_CEC_CLIENT_PATH:-/usr/bin/cec-client}" >> "${COMPOSE_FILE}"
+        echo "      - ALARM_MONITOR_CEC_DEVICE=${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}" >> "${COMPOSE_FILE}"
+    fi
+
     cat >> "${COMPOSE_FILE}" <<'EOF'
       - TZ=${TZ:-Europe/Berlin}
     volumes:
       - alarm-monitor-data:/app/instance
+EOF
+
+    if [[ "${INSTALL_HDMI_CEC:-false}" == "true" ]]; then
+        if [[ -n "${ALARM_MONITOR_CEC_CLIENT_PATH:-}" && -f "${ALARM_MONITOR_CEC_CLIENT_PATH}" ]]; then
+            echo "      - ${ALARM_MONITOR_CEC_CLIENT_PATH}:${ALARM_MONITOR_CEC_CLIENT_PATH}:ro" >> "${COMPOSE_FILE}"
+        fi
+        for _cec_lib in "${CEC_LIB_MOUNTS[@]}"; do
+            echo "      - ${_cec_lib}:${_cec_lib}:ro" >> "${COMPOSE_FILE}"
+        done
+        cat >> "${COMPOSE_FILE}" <<EOF
+    devices:
+      - ${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}
+EOF
+        if [[ -e /dev/vchiq ]]; then
+            echo "      - /dev/vchiq" >> "${COMPOSE_FILE}"
+        fi
+    fi
+
+    cat >> "${COMPOSE_FILE}" <<'EOF'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -2275,6 +2437,13 @@ PLYMSCRIPT
             if ! grep -q "hdmi_force_hotplug" "$CONFIG_FILE"; then
                 printf '\n# HDMI erzwingen\nhdmi_force_hotplug=1\nhdmi_group=1\nhdmi_mode=16\n' | sudo tee -a "$CONFIG_FILE" > /dev/null
             fi
+            # HDMI-CEC aktivieren (falls zuvor deaktiviert)
+            if [[ "${INSTALL_HDMI_CEC:-false}" == "true" ]]; then
+                if grep -q "^hdmi_ignore_cec=1" "$CONFIG_FILE"; then
+                    sudo sed -i 's/^hdmi_ignore_cec=1/hdmi_ignore_cec=0/' "$CONFIG_FILE"
+                    ok "HDMI-CEC in config.txt aktiviert (hdmi_ignore_cec=0)."
+                fi
+            fi
             # Bluetooth deaktivieren (reduziert Ressourcen/Störquellen)
             if ! grep -q "disable-bt" "$CONFIG_FILE"; then
                 echo "dtoverlay=disable-bt" | sudo tee -a "$CONFIG_FILE" > /dev/null
@@ -2433,6 +2602,15 @@ if [[ "$INSTALL_KIOSK" == "true" ]]; then
     echo -e "    Neustart erforderlich für automatischen X-Start."
     echo -e "    ${CYAN}sudo reboot${NC}"
     echo -e "    Wöchentlicher Neustart: Sonntag 03:00 Uhr (Cron)"
+    echo ""
+fi
+
+if [[ "$INSTALL_HDMI_CEC" == "true" ]]; then
+    echo -e "  ${BOLD}HDMI-CEC:${NC}"
+    echo -e "    cec-client: ${CYAN}${ALARM_MONITOR_CEC_CLIENT_PATH:-/usr/bin/cec-client}${NC}"
+    echo -e "    Gerät:      ${CYAN}${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}${NC}"
+    echo -e "    Steuerung erfolgt durch alarm-monitor (Einschalten bei Alarm, Standby nach Idle)."
+    echo -e "    Test: ${CYAN}echo 'pow 0' | cec-client -s -d 1${NC}  (Monitor einschalten)"
     echo ""
 fi
 

@@ -90,6 +90,14 @@ services:
       # Display Configuration
       - ALARM_MONITOR_DISPLAY_DURATION_MINUTES=${ALARM_MONITOR_DISPLAY_DURATION_MINUTES:-30}
       
+      # Optional: HDMI-CEC display control (enable via install.sh on kiosk hosts)
+      # - ALARM_MONITOR_CEC_ENABLED=true
+      # - ALARM_MONITOR_CEC_CLIENT_PATH=/usr/bin/cec-client
+      # - ALARM_MONITOR_CEC_DEVICE=/dev/cec0
+      # - ALARM_MONITOR_CEC_IDLE_STANDBY_MINUTES=30
+      # When enabled, install.sh also mounts cec-client + libs and devices: /dev/cec0
+      # Schedules and fine-tuning: alarm-monitor Settings → HDMI-CEC
+      
       # Optional: Groups configuration
       # - ALARM_MONITOR_GRUPPEN=${ALARM_MONITOR_GRUPPEN}
       

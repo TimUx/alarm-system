@@ -77,13 +77,23 @@ ALARM_MONITOR_SHOW_LAST_ALARM=true
 ALARM_MONITOR_WARNINGS_MIN_LEVEL=3
 ALARM_MONITOR_CALENDAR_URLS          # optional: iCal-URLs für Ruhezustand
 ALARM_MONITOR_NTFY_TOPIC_URL          # optional: ntfy.sh Dashboard-Nachrichten
+ALARM_MONITOR_CEC_ENABLED             # optional: HDMI-CEC Monitor-Steuerung
+ALARM_MONITOR_CEC_CLIENT_PATH         # optional: Pfad zu cec-client (Standard: /usr/bin/cec-client)
+ALARM_MONITOR_CEC_DEVICE              # optional: Linux-Gerät (Standard: /dev/cec0)
 ```
+
+**HDMI-CEC (optional, ab alarm-monitor v1.3+):**
+
+Der Installer (`install.sh`) kann Host-Pakete (`cec-utils` auf Debian/RPi, `libcec` auf Fedora/Arch) installieren und den alarm-monitor-Container mit `/dev/cec0` sowie `cec-client` anbinden. Die eigentliche Steuerungslogik (Einschalten bei Alarm, Standby nach Idle-Zeit, feste Einschaltzeiten) liegt in **alarm-monitor** und wird über Einstellungen → HDMI-CEC konfiguriert.
+
+Siehe auch: [alarm-monitor – HDMI-CEC Dokumentation](https://github.com/TimUx/alarm-monitor/blob/main/README.md#konfiguration)
 
 **Neue Features (alarm-monitor v1.2+):**
 - DWD-Unwetterwarnungen im Ruhezustand (automatisch, konfigurierbare Mindest-Warnstufe)
 - iCal-Kalender-Integration im Ruhezustand
 - ntfy.sh Dashboard-Nachrichten
 - Konfigurierbares Idle-Layout (letzter Einsatz ein-/ausblenden)
+- HDMI-CEC Monitor/TV-Steuerung (Wake bei Alarm, Standby nach Idle, feste Zeitfenster)
 - Python-Paket umbenannt: `alarm_monitor` (Legacy-Präfix `ALARM_DASHBOARD_` wird weiterhin als Fallback gelesen)
 
 **API-Endpunkte:**

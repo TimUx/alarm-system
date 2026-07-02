@@ -46,6 +46,7 @@ Dieses Repository stellt die zentrale Konfiguration und Docker-Compose-Orchestri
    - Webbasiertes Dashboard zur Alarmvisualisierung
    - Zeigt Karten, Wetter, Einsatzkräfte
    - Ruft Rückmeldungen vom Messenger ab
+   - Optional: HDMI-CEC Steuerung (Monitor/TV ein-/ausschalten)
    - Port: 8000 (extern zugänglich)
 
 3. **[alarm-messenger](https://github.com/TimUx/alarm-messenger)**
@@ -123,11 +124,12 @@ Das Skript führt Sie interaktiv durch folgende Schritte:
 2. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
    (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
 3. **Kiosk-Modus** – Optional: Browser im Vollbild-Kiosk-Modus einrichten (z. B. für Raspberry Pi)
-4. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+4. **HDMI-CEC** – Optional: Monitor/TV-Steuerung per HDMI-CEC (z. B. für Kiosk-Displays am RPi)
+5. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
    *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
-5. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
-6. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
-7. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+6. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
+7. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
+8. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
 
 Außerdem speichert das Skript Eingaben in `~/.alarm-system-install.conf` und verwendet sie bei späteren Läufen als Standardwerte.
 
@@ -155,8 +157,9 @@ Automatisch eingerichtet durch den Installer:
 - `alarm-system.service` (Docker-Compose Autostart beim Boot)
 - wöchentliche Updates per Cron (Sonntag 02:30 OS, 02:45 Docker)
 - im Kiosk-Modus zusätzlich `kiosk.service`, `kiosk-watchdog.service` und (mit Monitor) `alarm-sound.service`
+- bei HDMI-CEC: Host-Pakete (`cec-utils`/`libcec`), udev-Regel, Docker-Device-Mount `/dev/cec0` für alarm-monitor
 
-> **Tipp:** Eine ausführlichere Schritt-für-Schritt-Anleitung (inkl. manuelle Installation) finden Sie in [QUICKSTART.md](QUICKSTART.md).
+> **Tipp:** Eine ausführlichere Schritt-für-Schritt-Anleitung (inkl. manuelle Installation) finden Sie in [QUICKSTART.md](QUICKSTART.md). Details zur Monitor-Steuerung: [alarm-monitor README – HDMI-CEC](https://github.com/TimUx/alarm-monitor#konfiguration).
 
 ---
 
@@ -198,6 +201,11 @@ Falls Sie das Skript nicht verwenden möchten, können Sie das System auch manue
    
    # Passwort für die Einstellungsseite (erzeugt mit openssl rand -hex 16)
    ALARM_MONITOR_SETTINGS_PASSWORD=generiertes-passwort-für-einstellungen
+   
+   # Optional: HDMI-CEC (Monitor/TV per HDMI ein-/ausschalten)
+   # ALARM_MONITOR_CEC_ENABLED=true
+   # ALARM_MONITOR_CEC_CLIENT_PATH=/usr/bin/cec-client
+   # ALARM_MONITOR_CEC_DEVICE=/dev/cec0
    
    # Server-URL für Messenger (für QR-Code-Generierung)
    ALARM_MESSENGER_SERVER_URL=http://ihre-server-ip:3000
@@ -496,6 +504,25 @@ Status und Aktionen prüfen:
 sudo journalctl -u kiosk-watchdog.service -f
 sudo tail -f /var/log/alarm-system-watchdog.log
 ```
+
+### HDMI-CEC / Monitor-Steuerung funktioniert nicht
+
+Wenn der Monitor/TV bei Alarm nicht aufwacht oder nicht in den Standby geht:
+
+1. **Installation prüfen** – HDMI-CEC muss beim `install.sh` aktiviert worden sein (Schritt „HDMI-CEC“)
+2. **Host-Pakete** – `cec-client` muss auf dem Host verfügbar sein:
+   ```bash
+   which cec-client
+   echo 'pow 0' | cec-client -s -d 1   # Test: Monitor einschalten
+   ```
+3. **Gerät** – `/dev/cec0` muss existieren (ggf. nach Neustart mit angeschlossenem HDMI):
+   ```bash
+   ls -l /dev/cec*
+   ```
+4. **Docker** – In `docker-compose.yml` müssen Device-Mount und Env-Variablen gesetzt sein (wird von `install.sh` generiert)
+5. **Anwendungslogik** – Steuerungsregeln (Idle-Zeit, feste Zeitfenster) konfigurieren Sie in **alarm-monitor** unter Einstellungen → HDMI-CEC
+
+Weitere Details: [alarm-monitor – HDMI-CEC](https://github.com/TimUx/alarm-monitor/blob/main/README.md#konfiguration)
 
 ## Mobile App Setup
 
