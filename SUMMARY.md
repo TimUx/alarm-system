@@ -120,17 +120,20 @@ IMAP Server (External)
 
 ### Helper Tools (4 files)
 
-9. **install.sh** (primary installation method, 1500+ lines)
-   - Interactive 1-click installation wizard
+9. **install.sh** (primary installation method, 2600+ lines)
+   - Interactive 1-click installation and upgrade wizard
    - Auto-detects architecture (x86_64, arm64, armv7l) and Linux distribution
-   - Installs Docker and Docker Compose automatically
+   - Detects existing installations (`.env`, docker-compose.yml, containers, systemd)
+   - Idempotent: installs only missing packages and new components on re-run
+   - Installs Docker and Docker Compose automatically (if not present)
    - Component selection (alarm-monitor, alarm-messenger, alarm-mail, Caddy)
    - Configures all settings interactively with secure random key suggestions
+   - Preserves existing `.env` sections when configuration is unchanged (auto-backup)
    - Generates `.env` and `docker-compose.yml` tailored to selected components
    - Optional Kiosk mode (Chromium fullscreen, autologin, watchdog service)
    - Optional HDMI-CEC setup (cec-utils/libcec per distro, Docker device mount for alarm-monitor)
    - Creates helper scripts: `update.sh`, `backup.sh`, `status.sh`, `logs.sh`, `os-update.sh`
-   - Saves configuration state for re-runs
+   - Saves configuration state for re-runs (`~/.alarm-system-install.conf`)
 
 10. **validate-config.sh** (220+ lines)
     - Configuration validation
@@ -229,16 +232,20 @@ curl -fsSL https://raw.githubusercontent.com/TimUx/alarm-system/main/install.sh 
 
 # The script will:
 # 1. Detect architecture and Linux distribution
-# 2. Install Docker and Docker Compose automatically
-# 3. Ask for component selection and configuration interactively
-# 4. Generate /opt/alarm-system/.env and docker-compose.yml
-# 5. Start all containers
+# 2. Detect existing installation (upgrade mode) or perform fresh install
+# 3. Install Docker and Docker Compose automatically (if missing)
+# 4. Ask for component selection and configuration interactively
+# 5. Generate /opt/alarm-system/.env and docker-compose.yml
+# 6. Start all containers
+
+# Re-run to add components (e.g. alarm-messenger after alarm-monitor):
+./install.sh
 
 # Afterwards, use the generated helper scripts:
 cd /opt/alarm-system
 ./status.sh       # Check container status
 ./logs.sh         # Follow live logs
-./update.sh       # Update to latest images
+./update.sh       # Update to latest images (no config changes)
 ./backup.sh       # Backup all data
 ```
 

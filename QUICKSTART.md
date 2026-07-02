@@ -7,6 +7,8 @@ Schnellanleitung für die Installation und Inbetriebnahme des Alarm-Systems.
 Das einfachste Vorgehen: das interaktive Installationsskript direkt herunterladen und ausführen.
 Es erkennt automatisch die Prozessor-Architektur und Linux-Distribution, installiert Docker,
 fragt alle nötigen Zugangsdaten interaktiv ab und richtet das System vollständig ein.
+Bei erneutem Ausführen erkennt das Skript bestehende Installationen und führt nur fehlende
+Pakete und Konfigurationen aus (Upgrade-Modus).
 
 ### Voraussetzungen
 
@@ -48,15 +50,16 @@ chmod +x install.sh
 Das Skript führt Sie interaktiv durch folgende Schritte:
 
 1. **Systemerkennung** – Architektur und Linux-Distribution werden automatisch erkannt
-2. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
+2. **Bestehende Installation** – Falls vorhanden: erkannte Komponenten anzeigen (Upgrade-Modus)
+3. **Komponentenauswahl** – Welche Dienste sollen installiert werden?
    (`alarm-monitor`, `alarm-messenger`, `alarm-mail`, Caddy Reverse Proxy)
-3. **Kiosk-Modus** – Soll ein Browser im Vollbild-Kiosk-Modus eingerichtet werden?
-4. **HDMI-CEC** – Optional: Monitor/TV per HDMI-CEC steuern (bei alarm-monitor)
-5. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
-   *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen)*
-5. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
-6. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
-7. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
+4. **Kiosk-Modus** – Soll ein Browser im Vollbild-Kiosk-Modus eingerichtet werden?
+5. **HDMI-CEC** – Optional: Monitor/TV per HDMI-CEC steuern (bei alarm-monitor)
+6. **Konfiguration** – IMAP-Zugangsdaten, Ports, Organisationsname, API-Keys usw.
+   *(API-Keys werden automatisch als sichere Zufallswerte vorgeschlagen; bei Upgrade standardmäßig beibehalten)*
+7. **Push-Setup (optional)** – FCM (Android) und APNs (iOS) können direkt hinterlegt werden
+8. **Installation** – Docker, Abhängigkeiten und Container werden automatisch eingerichtet
+9. **Zusammenfassung** – URLs, Login-Daten und ein Test-Alarm-Befehl werden angezeigt
 
 Zusätzlich werden Eingaben in `~/.alarm-system-install.conf` gespeichert und beim nächsten Lauf als Standardwerte verwendet.
 
@@ -78,7 +81,28 @@ Nach der Installation befinden sich alle Dateien in `/opt/alarm-system`:
 └── sounds/alarm.wav     # Beispiel-Alarmton (optional)
 ```
 
-> **Wichtig:** Bei erneutem Ausführen von `install.sh` werden `.env` und `docker-compose.yml` im gewählten Installationsverzeichnis (standardmäßig `/opt/alarm-system`) neu generiert (überschrieben). Vorherige Anpassungen deshalb vorher sichern.
+> **Upgrade:** `install.sh` kann beliebig oft erneut ausgeführt werden. Das Skript erkennt
+> bestehende Installationen in `/opt/alarm-system` und installiert nur fehlende Pakete sowie
+> neue Komponenten. Bereits konfigurierte Dienste bleiben standardmäßig unverändert.
+> Die `.env` wird vor Änderungen automatisch gesichert (`.env.bak.*`).
+
+### Upgrade / Komponenten hinzufügen
+
+Typischer Ablauf, wenn z. B. `alarm-messenger` nachträglich ergänzt werden soll:
+
+```bash
+./install.sh
+# Bestehende Installation wird erkannt
+# Neue Komponente auswählen (ja)
+# „Konfiguration ändern?“ für bestehende Dienste → nein
+# Nur die neue Komponente konfigurieren
+```
+
+Für reine Docker-Image-Updates ohne Konfigurationsänderung:
+
+```bash
+cd /opt/alarm-system && ./update.sh
+```
 
 Automatisch eingerichtet durch den Installer:
 - `alarm-system.service` (Docker-Compose Autostart beim Boot)
