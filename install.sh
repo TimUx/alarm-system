@@ -1756,45 +1756,49 @@ if [[ "$INSTALL_KIOSK" == "true" && "$RECONFIGURE_KIOSK" == "true" ]]; then
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} fonts-noto-color-emoji fonts-noto-core" 2>/dev/null || \
                 eval "${PKG_INSTALL} fonts-noto-color-emoji" 2>/dev/null || true
-            # Chromium: Name unterscheidet sich je nach Distro/Arch
-            if eval "${PKG_INSTALL} chromium-browser" 2>/dev/null; then
-                KIOSK_BIN="chromium-browser"
-            elif eval "${PKG_INSTALL} chromium" 2>/dev/null; then
-                KIOSK_BIN="chromium"
-            else
+            # Chromium: Paketname unterscheidet sich je nach Distro/Arch
+            # (auf neueren Raspberry Pi OS / Debian heißt das Binary oft nur "chromium")
+            eval "${PKG_INSTALL} chromium" 2>/dev/null || \
+                eval "${PKG_INSTALL} chromium-browser" 2>/dev/null || \
                 warn "Kein Chromium-Paket gefunden – bitte manuell installieren."
-                KIOSK_BIN="chromium"
-            fi
             ;;
         dnf|yum)
             eval "${PKG_INSTALL} xorg-x11-server-Xorg openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} google-noto-emoji-color-fonts google-noto-emoji-fonts" 2>/dev/null || \
                 eval "${PKG_INSTALL} google-noto-emoji-color-fonts" 2>/dev/null || true
-            KIOSK_BIN="chromium-browser"
-            command -v chromium >/dev/null 2>&1 && KIOSK_BIN="chromium"
             ;;
         pacman)
             eval "${PKG_INSTALL} xorg-server openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} noto-fonts-emoji noto-fonts" 2>/dev/null || true
-            KIOSK_BIN="chromium"
             ;;
         zypper)
             eval "${PKG_INSTALL} xorg-x11-server openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} google-noto-coloremoji-fonts google-noto-fonts" 2>/dev/null || \
                 eval "${PKG_INSTALL} google-noto-coloremoji-fonts" 2>/dev/null || true
-            KIOSK_BIN="chromium"
             ;;
         apk)
             eval "${PKG_INSTALL} xorg-server openbox unclutter chromium xdotool"
             # Emoji- und Unicode-Schriftarten für korrekte Darstellung von Wetter-Symbolen
             eval "${PKG_INSTALL} font-noto-emoji font-noto" 2>/dev/null || \
                 eval "${PKG_INSTALL} font-noto-emoji" 2>/dev/null || true
-            KIOSK_BIN="chromium-browser"
             ;;
     esac
+
+    # Tatsächliches Binary ermitteln (Paketname ≠ Kommando, z. B. chromium vs. chromium-browser)
+    if command -v chromium >/dev/null 2>&1; then
+        KIOSK_BIN="chromium"
+    elif command -v chromium-browser >/dev/null 2>&1; then
+        KIOSK_BIN="chromium-browser"
+    elif command -v google-chrome >/dev/null 2>&1; then
+        KIOSK_BIN="google-chrome"
+    else
+        warn "Kein Chromium-/Chrome-Binary gefunden – kiosk.sh verwendet Fallback 'chromium'."
+        KIOSK_BIN="chromium"
+    fi
+    info "Kiosk-Browser-Binary: ${KIOSK_BIN}"
 
     # Schriftarten-Cache aktualisieren (damit neue Fonts sofort erkannt werden)
     command -v fc-cache >/dev/null 2>&1 && fc-cache -f 2>/dev/null || true
