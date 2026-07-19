@@ -184,7 +184,7 @@ Automatisch eingerichtet durch den Installer:
 - `alarm-system.service` (Docker-Compose Autostart beim Boot)
 - wöchentliche Updates per Cron (Sonntag 02:30 OS, 02:45 Docker)
 - im Kiosk-Modus zusätzlich `kiosk.service`, `kiosk-watchdog.service` und (mit Monitor) `alarm-sound.service`
-- bei HDMI-CEC: Host-Pakete (`cec-utils`/`libcec`), udev-Regel, Docker-Device-Mount `/dev/cec0` für alarm-monitor
+- bei HDMI-CEC: udev-Regel und Docker-Device-Mount `/dev/cec0` für alarm-monitor (`cec-client` ist im Image)
 
 > **Tipp:** Eine ausführlichere Schritt-für-Schritt-Anleitung (inkl. manuelle Installation) finden Sie in [QUICKSTART.md](QUICKSTART.md). Details zur Monitor-Steuerung: [alarm-monitor README – HDMI-CEC](https://github.com/TimUx/alarm-monitor#konfiguration).
 
@@ -539,10 +539,10 @@ sudo tail -f /var/log/alarm-system-watchdog.log
 Wenn der Monitor/TV bei Alarm nicht aufwacht oder nicht in den Standby geht:
 
 1. **Installation prüfen** – HDMI-CEC muss beim `install.sh` aktiviert worden sein (Schritt „HDMI-CEC“)
-2. **Host-Pakete** – `cec-client` muss auf dem Host verfügbar sein:
+2. **Image/Container** – aktuelles alarm-monitor-Image mit eingebautem `cec-client` (Host-Binary nicht mounten):
    ```bash
-   which cec-client
-   echo 'pow 0' | cec-client -s -d 1   # Test: Monitor einschalten
+   docker exec -it alarm-monitor bash -lc "ldd /usr/bin/cec-client | grep 'not found'"
+   docker exec -it alarm-monitor bash -lc "echo 'pow 0' | cec-client -s -d 1"
    ```
 3. **Gerät** – `/dev/cec0` muss existieren (ggf. nach Neustart mit angeschlossenem HDMI):
    ```bash

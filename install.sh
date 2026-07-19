@@ -395,10 +395,12 @@ detect_system() {
 # HDMI-CEC: Pakete, Pfade und Zugriff
 # ---------------------------------------------------------------------------
 
-# install_hdmi_cec_packages  →  Installiert cec-client je nach Paketmanager
+# install_hdmi_cec_packages  →  Optional Host-cec-client für manuelle Tests.
+# alarm-monitor bringt cec-utils/cec-client im Docker-Image mit; Host-Pakete
+# sind nicht erforderlich und werden nicht in den Container gemountet.
 install_hdmi_cec_packages() {
     if command -v cec-client >/dev/null 2>&1; then
-        ok "cec-client bereits installiert: $(command -v cec-client)"
+        ok "Host-cec-client bereits installiert: $(command -v cec-client) (nur für manuelle Tests)"
         return 0
     fi
     local _installed=false
@@ -430,18 +432,16 @@ install_hdmi_cec_packages() {
             ;;
     esac
     if [[ "$_installed" == "true" ]]; then
-        ok "HDMI-CEC Pakete installiert."
+        ok "Host-HDMI-CEC Pakete installiert (optional, für manuelle Tests)."
         return 0
     fi
-    warn "HDMI-CEC Pakete konnten nicht installiert werden."
+    warn "Host-HDMI-CEC Pakete konnten nicht installiert werden – unkritisch, cec-client ist im alarm-monitor-Image."
     return 1
 }
 
-# detect_hdmi_cec_paths  →  Setzt CEC_CLIENT_PATH, CEC_DEVICE_PATH, CEC_LIB_MOUNTS
+# detect_hdmi_cec_paths  →  Setzt CEC_DEVICE_PATH und Container-Client-Pfad
 detect_hdmi_cec_paths() {
-    CEC_CLIENT_PATH="$(command -v cec-client 2>/dev/null || true)"
     CEC_DEVICE_PATH=""
-    CEC_LIB_MOUNTS=()
 
     for _dev in /dev/cec0 /dev/cec1; do
         if [[ -e "$_dev" ]]; then
@@ -452,15 +452,8 @@ detect_hdmi_cec_paths() {
     # Standardpfad, falls Gerät erst nach Neustart/HDMI-Hotplug erscheint
     [[ -z "$CEC_DEVICE_PATH" ]] && CEC_DEVICE_PATH="/dev/cec0"
 
-    if [[ -n "$CEC_CLIENT_PATH" ]]; then
-        while IFS= read -r _lib; do
-            [[ -f "$_lib" ]] && CEC_LIB_MOUNTS+=("$_lib")
-        done < <(ldd "$CEC_CLIENT_PATH" 2>/dev/null \
-            | awk '/=> \//{print $3}' \
-            | grep -E 'libcec|libp8-platform' || true)
-    fi
-
-    ALARM_MONITOR_CEC_CLIENT_PATH="${CEC_CLIENT_PATH:-/usr/bin/cec-client}"
+    # cec-client kommt aus dem alarm-monitor-Image (nicht vom Host mounten)
+    ALARM_MONITOR_CEC_CLIENT_PATH="/usr/bin/cec-client"
     ALARM_MONITOR_CEC_DEVICE="${CEC_DEVICE_PATH}"
 }
 
@@ -606,6 +599,7 @@ if [[ "$INSTALL_MONITOR" == "true" ]]; then
     echo ""
     info "Mit HDMI-CEC kann alarm-monitor z.B. den Monitor/TV bei einem Alarm"
     info "einschalten und nach Idle-Zeit wieder in den Standby versetzen."
+    info "cec-client ist im alarm-monitor-Image enthalten; Host braucht nur /dev/cec0."
     info "Voraussetzung: HDMI-Kabel mit CEC-Unterstützung (z.B. Raspberry Pi → TV/Monitor)."
     echo ""
     _cec_default="n"
@@ -1087,26 +1081,18 @@ sudo systemctl start  docker 2>/dev/null || true
 ok "Docker-Dienst aktiviert und gestartet."
 
 # ---------------------------------------------------------------------------
-# Schritt B2: HDMI-CEC Pakete installieren (für alarm-monitor)
+# Schritt B2: HDMI-CEC Host-Zugriff einrichten (Device/udev; cec-client im Image)
 # ---------------------------------------------------------------------------
 if [[ "${INSTALL_HDMI_CEC:-false}" == "true" ]]; then
-    step "HDMI-CEC Pakete installieren"
-    if install_hdmi_cec_packages; then
-        detect_hdmi_cec_paths
-        configure_hdmi_cec_access
-        if [[ -n "${CEC_CLIENT_PATH:-}" ]]; then
-            ok "cec-client gefunden: ${CEC_CLIENT_PATH}"
-        else
-            warn "cec-client nicht im PATH – Paketinstallation prüfen."
-        fi
-        if [[ -e "${CEC_DEVICE_PATH:-/dev/cec0}" ]]; then
-            ok "CEC-Gerät gefunden: ${CEC_DEVICE_PATH}"
-        else
-            info "CEC-Gerät (${CEC_DEVICE_PATH:-/dev/cec0}) noch nicht vorhanden – erscheint ggf. nach Neustart mit angeschlossenem HDMI."
-        fi
+    step "HDMI-CEC Host-Zugriff einrichten"
+    install_hdmi_cec_packages || true
+    detect_hdmi_cec_paths
+    configure_hdmi_cec_access
+    ok "alarm-monitor nutzt cec-client aus dem Docker-Image: ${ALARM_MONITOR_CEC_CLIENT_PATH}"
+    if [[ -e "${CEC_DEVICE_PATH:-/dev/cec0}" ]]; then
+        ok "CEC-Gerät gefunden: ${CEC_DEVICE_PATH}"
     else
-        warn "HDMI-CEC deaktiviert – Paketinstallation fehlgeschlagen."
-        INSTALL_HDMI_CEC=false
+        info "CEC-Gerät (${CEC_DEVICE_PATH:-/dev/cec0}) noch nicht vorhanden – erscheint ggf. nach Neustart mit angeschlossenem HDMI."
     fi
 fi
 
@@ -1374,12 +1360,8 @@ EOF
 EOF
 
     if [[ "${INSTALL_HDMI_CEC:-false}" == "true" ]]; then
-        if [[ -n "${ALARM_MONITOR_CEC_CLIENT_PATH:-}" && -f "${ALARM_MONITOR_CEC_CLIENT_PATH}" ]]; then
-            echo "      - ${ALARM_MONITOR_CEC_CLIENT_PATH}:${ALARM_MONITOR_CEC_CLIENT_PATH}:ro" >> "${COMPOSE_FILE}"
-        fi
-        for _cec_lib in "${CEC_LIB_MOUNTS[@]}"; do
-            echo "      - ${_cec_lib}:${_cec_lib}:ro" >> "${COMPOSE_FILE}"
-        done
+        # Nur das CEC-Gerät durchreichen – cec-client/libs kommen aus dem Image.
+        # Alte Host-Binary-Mounts (cec-client + libncurses) bewusst nicht mehr setzen.
         cat >> "${COMPOSE_FILE}" <<EOF
     devices:
       - ${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}
@@ -2913,10 +2895,10 @@ fi
 
 if [[ "$INSTALL_HDMI_CEC" == "true" ]]; then
     echo -e "  ${BOLD}HDMI-CEC:${NC}"
-    echo -e "    cec-client: ${CYAN}${ALARM_MONITOR_CEC_CLIENT_PATH:-/usr/bin/cec-client}${NC}"
+    echo -e "    cec-client: ${CYAN}${ALARM_MONITOR_CEC_CLIENT_PATH:-/usr/bin/cec-client}${NC} (im alarm-monitor-Image)"
     echo -e "    Gerät:      ${CYAN}${ALARM_MONITOR_CEC_DEVICE:-/dev/cec0}${NC}"
     echo -e "    Steuerung erfolgt durch alarm-monitor (Einschalten bei Alarm, Standby nach Idle)."
-    echo -e "    Test: ${CYAN}echo 'pow 0' | cec-client -s -d 1${NC}  (Monitor einschalten)"
+    echo -e "    Test im Container: ${CYAN}docker exec -it alarm-monitor bash -lc \"echo 'pow 0' | cec-client -s -d 1\"${NC}"
     echo ""
 fi
 
