@@ -108,7 +108,7 @@ Automatisch eingerichtet durch den Installer:
 - `alarm-system.service` (Docker-Compose Autostart beim Boot)
 - wöchentliche Updates per Cron (Sonntag 02:30 OS, 02:45 Docker)
 - im Kiosk-Modus zusätzlich `kiosk.service`, `kiosk-watchdog.service` und (mit Monitor) `alarm-sound.service`
-- bei HDMI-CEC: `cec-utils`/`libcec` auf dem Host, Docker-Zugriff auf `/dev/cec0` für alarm-monitor
+- bei HDMI-CEC: Docker-Zugriff auf `/dev/cec0` für alarm-monitor (`cec-client` ist im Image)
 
 ---
 

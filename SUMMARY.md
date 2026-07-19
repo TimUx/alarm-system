@@ -131,7 +131,7 @@ IMAP Server (External)
    - Preserves existing `.env` sections when configuration is unchanged (auto-backup)
    - Generates `.env` and `docker-compose.yml` tailored to selected components
    - Optional Kiosk mode (Chromium fullscreen, autologin, watchdog service)
-   - Optional HDMI-CEC setup (cec-utils/libcec per distro, Docker device mount for alarm-monitor)
+   - Optional HDMI-CEC setup (udev + Docker device mount `/dev/cec0`; cec-client in alarm-monitor image)
    - Creates helper scripts: `update.sh`, `backup.sh`, `status.sh`, `logs.sh`, `os-update.sh`
    - Saves configuration state for re-runs (`~/.alarm-system-install.conf`)
 
