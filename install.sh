@@ -1854,7 +1854,9 @@ trap 'clear_browser_cache' EXIT
 EOF
     chmod +x "${KIOSK_SCRIPT}"
 
-    # Openbox-Autostart
+    # Openbox-Autostart: nur X-Umgebung (kein Browser).
+    # Chromium startet ausschließlich über kiosk.service – sonst laufen zwei
+    # Instanzen (unterschiedliche Profile) und der Bildschirm wird weiß/leer.
     mkdir -p "${HOME}/.config/openbox"
     cat > "${HOME}/.config/openbox/autostart" <<EOF
 # Sprache und Tastaturlayout (Deutsch)
@@ -1869,9 +1871,10 @@ xset -dpms &
 # Mauszeiger ausblenden
 unclutter -idle 0.1 -root &
 
-# Kiosk-Browser starten
-${KIOSK_SCRIPT} &
+# Kiosk-Browser: bewusst NICHT hier starten.
+# Start/Neustart übernimmt systemd: systemctl restart kiosk.service
 EOF
+    ok "openbox/autostart ohne Browser-Start (vermeidet Doppel-Chromium)."
 
     # Automatischen X-Start beim Login (tty1) konfigurieren
     BASH_PROFILE="${HOME}/.bash_profile"

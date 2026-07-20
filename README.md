@@ -534,6 +534,26 @@ sudo journalctl -u kiosk-watchdog.service -f
 sudo tail -f /var/log/alarm-system-watchdog.log
 ```
 
+### Kiosk zeigt weißen/leeren Bildschirm
+
+Ursache ist oft ein **Doppelstart** von Chromium (Openbox-Autostart **und** `kiosk.service`). Ab alarm-system v1.2.2 startet nur noch `kiosk.service` den Browser.
+
+Prüfen und bereinigen:
+
+```bash
+# Es darf nur ein user-data-dir vorkommen
+pgrep -af 'chromium.*user-data-dir'
+
+# Autostart darf kiosk.sh nicht starten
+grep kiosk.sh ~/.config/openbox/autostart || true
+
+# Nur systemd-Browser behalten
+pkill -f chromium || true
+sudo systemctl restart kiosk.service
+```
+
+Oder `install.sh` erneut mit Kiosk-Option ausführen (schreibt `openbox/autostart` ohne Browser-Start neu).
+
 ### HDMI-CEC / Monitor-Steuerung funktioniert nicht
 
 Wenn der Monitor/TV bei Alarm nicht aufwacht oder nicht in den Standby geht:
