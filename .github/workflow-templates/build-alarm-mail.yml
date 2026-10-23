@@ -1,4 +1,4 @@
-name: Build and Push alarm-monitor to GHCR
+name: Build and Push alarm-mail to GHCR
 
 on:
   push:
@@ -15,10 +15,11 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: timux/alarm-monitor
+  IMAGE_NAME: timux/alarm-mail
 
 jobs:
   build-and-push:
+    if: github.repository == 'TimUx/alarm-mail'
     runs-on: ubuntu-latest
     permissions:
       contents: read

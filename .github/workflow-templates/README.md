@@ -2,6 +2,11 @@
 
 Dieser Ordner enthält GitHub Actions Workflow-Vorlagen für das automatische Bauen und Pushen von Docker Images zu GitHub Container Registry (GHCR).
 
+Die Vorlagen liegen absichtlich **nicht** in `.github/workflows/`: `alarm-system`
+enthält nur die Orchestrierung, keine Komponenten-Dockerfiles. Die Image-Builds
+und ihre Versionen gehören in die jeweiligen Komponenten-Repositories.
+Zusätzlich ist jeder Build-Job auf sein Quell-Repository beschränkt.
+
 ## Workflow-Dateien
 
 - **build-alarm-mail.yml** - Workflow für alarm-mail Repository
@@ -20,7 +25,7 @@ Diese Workflows sind **Vorlagen**, die in die jeweiligen Komponenten-Repositorie
 
 ## Vollständige Dokumentation
 
-Siehe [docs/DOCKER_IMAGE_WORKFLOWS.md](../docs/DOCKER_IMAGE_WORKFLOWS.md) für:
+Siehe [docs/DOCKER_IMAGE_WORKFLOWS.md](../../docs/DOCKER_IMAGE_WORKFLOWS.md) für:
 - Detaillierte Einrichtungsanleitung
 - Schritt-für-Schritt Anweisungen
 - Troubleshooting
@@ -44,7 +49,7 @@ Das Skript führt Sie durch den gesamten Setup-Prozess.
 ```bash
 cd /pfad/zum/alarm-mail
 mkdir -p .github/workflows
-cp /pfad/zum/alarm-system/.github/workflows/build-alarm-mail.yml .github/workflows/build-and-push.yml
+cp /pfad/zum/alarm-system/.github/workflow-templates/build-alarm-mail.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build workflow"
 git push
@@ -54,7 +59,7 @@ git push
 ```bash
 cd /pfad/zum/alarm-monitor
 mkdir -p .github/workflows
-cp /pfad/zum/alarm-system/.github/workflows/build-alarm-monitor.yml .github/workflows/build-and-push.yml
+cp /pfad/zum/alarm-system/.github/workflow-templates/build-alarm-monitor.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build workflow"
 git push
@@ -64,7 +69,7 @@ git push
 ```bash
 cd /pfad/zum/alarm-messenger
 mkdir -p .github/workflows
-cp /pfad/zum/alarm-system/.github/workflows/build-alarm-messenger.yml .github/workflows/build-and-push.yml
+cp /pfad/zum/alarm-system/.github/workflow-templates/build-alarm-messenger.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build workflow"
 git push
@@ -101,5 +106,5 @@ Diese können dann direkt in `docker-compose.yml` verwendet werden (was bereits 
 ## Support
 
 Für Fragen und Probleme siehe:
-- [Vollständige Dokumentation](../docs/DOCKER_IMAGE_WORKFLOWS.md)
+- [Vollständige Dokumentation](../../docs/DOCKER_IMAGE_WORKFLOWS.md)
 - [GitHub Issues](https://github.com/TimUx/alarm-system/issues)
