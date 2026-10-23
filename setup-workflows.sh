@@ -122,7 +122,7 @@ echo ""
 
 # Aktuelles Verzeichnis speichern
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-WORKFLOWS_DIR="$SCRIPT_DIR/.github/workflows"
+WORKFLOWS_DIR="$SCRIPT_DIR/.github/workflow-templates"
 
 # Prüfen ob Workflow-Dateien existieren
 if [ ! -f "$WORKFLOWS_DIR/build-alarm-mail.yml" ]; then
@@ -164,9 +164,9 @@ for repo_name in "${!REPOS[@]}"; do
     if [ -n "$repo_path" ]; then
         workflow_file="$WORKFLOWS_DIR/build-${repo_name}.yml"
         if setup_workflow "$repo_name" "$repo_path" "$workflow_file"; then
-            ((SUCCESS_COUNT++))
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
-            ((FAIL_COUNT++))
+            FAIL_COUNT=$((FAIL_COUNT + 1))
         fi
     fi
 done
@@ -198,7 +198,7 @@ if [ $SUCCESS_COUNT -gt 0 ]; then
     echo ""
     echo "Weitere Informationen:"
     echo "  - docs/DOCKER_IMAGE_WORKFLOWS.md (vollständige Dokumentation)"
-    echo "  - .github/workflows/README.md (Workflow-Übersicht)"
+    echo "  - .github/workflow-templates/README.md (Workflow-Übersicht)"
 fi
 
 echo ""

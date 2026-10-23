@@ -10,7 +10,52 @@ Das Alarm-System besteht aus drei Hauptkomponenten, die jeweils als Docker Image
 2. **alarm-monitor** - Dashboard (`ghcr.io/timux/alarm-monitor:latest`)
 3. **alarm-messenger** - Push Notification System (`ghcr.io/timux/alarm-messenger:latest`)
 
-Die GitHub Actions Workflows in diesem Repository dienen als Vorlagen, die in jedem der drei Komponenten-Repositories eingerichtet werden müssen.
+Die GitHub Actions Workflows unter `.github/workflow-templates/` dienen als
+Vorlagen, die in jedem der drei Komponenten-Repositories eingerichtet werden
+müssen. Sie gehören nicht ins aktive `.github/workflows/` von `alarm-system`:
+Dieses Repository enthält Compose-Konfiguration, aber keine Komponentenquellen
+oder Dockerfiles. Jeder Vorlagen-Build ist zusätzlich auf sein Komponenten-Repository
+beschränkt, damit ein versehentliches Kopieren keine fremden GHCR-Images überschreibt.
+Bereits vorhandene Build-, Test- und Security-Workflows in den Komponenten-Repositories
+nicht ungeprüft durch diese Vorlagen ersetzen.
+
+## Releases von alarm-system
+
+Der aktive Workflow `.github/workflows/validate.yml` prüft bei Pull Requests,
+Pushes auf main/master, veröffentlichten Releases und manueller Ausführung die
+Shell-Syntax, das Installieren aller drei Vorlagen sowie die Compose-Konfiguration
+einschließlich Caddy mit `.env.example`. Er hat nur `contents: read` und
+veröffentlicht keine Images. Die Beispieldatei dient nur der Syntaxprüfung,
+nicht als produktive Konfiguration.
+
+Versionen von `alarm-system` und den Komponenten sind unabhängig. Ein
+`alarm-system`-Tag erzeugt keine gleichnamigen Komponenten-Images;
+`docker-compose.yml` referenziert derzeit jeweils `:latest`. Für reproduzierbare
+Deployments die im jeweiligen Komponenten-Repository veröffentlichten Versionen
+oder Digests verwenden, nicht eine gemeinsame Versionsnummer voraussetzen.
+
+### Recovery für v1.2.3
+
+Die drei fehlgeschlagenen Release-Läufe am Commit
+`4a681bb32787764755e6c9f795d3f6db44b5e2aa` führten versehentlich die Vorlagen
+in `alarm-system` aus: Bei Mail und Monitor fehlte `Dockerfile`, bei Messenger
+das Verzeichnis `server/`. Der Release-Tag selbst muss nicht repariert werden.
+
+1. Den Fix über einen geprüften Pull Request nach main übernehmen.
+2. Den Validierungsworkflow auf dem gemergten Commit erfolgreich ausführen.
+3. Vor einem Deployment die tatsächlich referenzierten Images lesend prüfen:
+   `docker buildx imagetools inspect ghcr.io/timux/alarm-mail:latest`
+   (ebenso für `alarm-monitor` und `alarm-messenger`); beide Plattformen
+   `linux/amd64` und `linux/arm64` müssen vorhanden sein. Fehlende Images nur
+   über den bestehenden Release-Prozess des jeweiligen Quell-Repositories beheben.
+4. Erst nach zentraler Freigabe die nächste freie Patchversion von
+   `alarm-system` auf dem gemergten Commit veröffentlichen (nach v1.2.3 derzeit
+   v1.2.4, vor Veröffentlichung erneut auf Verfügbarkeit prüfen).
+
+Bestehende Tags/Releases nicht verschieben oder neu erstellen. Ein erneuter Lauf
+der alten v1.2.3-Jobs verwendet weiterhin die fehlerhaften Vorlagen am alten
+Commit und ist kein Recovery. Erfolgreiche Compose-Validierung ersetzt keinen
+erfolgreichen Komponenten-Release-Build.
 
 ## Voraussetzungen
 
@@ -47,7 +92,7 @@ Für jedes der drei Repositories müssen die entsprechenden Workflow-Dateien man
 ```bash
 cd /pfad/zum/alarm-mail
 mkdir -p .github/workflows
-cp /pfad/zum/alarm-system/.github/workflows/build-alarm-mail.yml .github/workflows/build-and-push.yml
+cp /pfad/zum/alarm-system/.github/workflow-templates/build-alarm-mail.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build and push workflow"
 git push
@@ -57,7 +102,7 @@ git push
 ```bash
 cd /pfad/zum/alarm-monitor
 mkdir -p .github/workflows
-cp /pfad/zum/alarm-system/.github/workflows/build-alarm-monitor.yml .github/workflows/build-and-push.yml
+cp /pfad/zum/alarm-system/.github/workflow-templates/build-alarm-monitor.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build and push workflow"
 git push
@@ -67,7 +112,7 @@ git push
 ```bash
 cd /pfad/zum/alarm-messenger
 mkdir -p .github/workflows
-cp /pfad/zum/alarm-system/.github/workflows/build-alarm-messenger.yml .github/workflows/build-and-push.yml
+cp /pfad/zum/alarm-system/.github/workflow-templates/build-alarm-messenger.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build and push workflow"
 git push
@@ -285,7 +330,9 @@ git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
 
-Dies triggert den Workflow und erstellt:
+Der Tag allein löst bei diesen Vorlagen keinen Build aus. Erst das
+Veröffentlichen eines GitHub Releases zu diesem Tag im Komponenten-Repository
+triggert den Release-Workflow und erstellt:
 - `ghcr.io/timux/alarm-mail:1.0.0`
 - `ghcr.io/timux/alarm-mail:1.0`
 - `ghcr.io/timux/alarm-mail:1`

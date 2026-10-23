@@ -13,7 +13,7 @@ Es wurden GitHub Actions Workflows erstellt, die automatisch Docker Images bauen
 
 ## Implementierte Komponenten
 
-### 1. GitHub Actions Workflows (`.github/workflows/`)
+### 1. GitHub Actions Workflow-Vorlagen (`.github/workflow-templates/`)
 Drei Workflow-Vorlagen für die Komponenten-Repositories:
 
 #### `build-alarm-mail.yml`
@@ -71,7 +71,7 @@ Umfassende Dokumentation mit:
 - Sicherheits-Best-Practices
 - Maintenance und Updates
 
-#### `.github/workflows/README.md` (2.9 KB)
+#### `.github/workflow-templates/README.md`
 Kurzreferenz für die Workflows:
 - Übersicht der Workflow-Dateien
 - Schnellstart-Anleitung
@@ -135,7 +135,7 @@ Die Workflow-Dateien müssen in die jeweiligen Komponenten-Repositories kopiert 
 # Für alarm-mail
 cd ../alarm-mail
 mkdir -p .github/workflows
-cp ../alarm-system/.github/workflows/build-alarm-mail.yml .github/workflows/build-and-push.yml
+cp ../alarm-system/.github/workflow-templates/build-alarm-mail.yml .github/workflows/build-and-push.yml
 git add .github/workflows/build-and-push.yml
 git commit -m "Add automated Docker image build workflow"
 git push
@@ -186,15 +186,17 @@ Nach der Implementierung:
    - Images pullen und alarm-system starten
 
 4. **Optional - Versioned Releases**:
-   - Git Tags für stabile Versionen erstellen
-   - Workflows bauen automatisch versionierte Images
+   - Git Tags und GitHub Releases für stabile Komponentenversionen erstellen
+   - Komponenten-Workflows bauen bei veröffentlichten Releases versionierte Images
 
 ## Dateien
 
 ```
 alarm-system/
 ├── .github/
-│   └── workflows/
+│   ├── workflows/
+│   │   └── validate.yml                 # Compose-/Shell-/Vorlagen-Prüfung
+│   └── workflow-templates/
 │       ├── README.md                    # Workflow-Übersicht
 │       ├── build-alarm-mail.yml         # Workflow für alarm-mail
 │       ├── build-alarm-monitor.yml      # Workflow für alarm-monitor
@@ -221,5 +223,5 @@ alarm-system/
 ## Support
 Für Fragen oder Probleme:
 - Siehe `docs/DOCKER_IMAGE_WORKFLOWS.md` (vollständige Dokumentation)
-- Siehe `.github/workflows/README.md` (Schnellreferenz)
+- Siehe `.github/workflow-templates/README.md` (Schnellreferenz)
 - GitHub Issues erstellen

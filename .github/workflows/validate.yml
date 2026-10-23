@@ -1,0 +1,31 @@
+name: Validate alarm-system
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check shell syntax
+        run: |
+          for script in install.sh setup-workflows.sh validate-config.sh tests/test-workflow-templates.sh; do
+            bash -n "$script"
+          done
+
+      - name: Test workflow template installation
+        run: bash tests/test-workflow-templates.sh
+
+      - name: Validate Compose configuration including Caddy
+        run: docker compose --env-file .env.example --profile with-caddy config --quiet
